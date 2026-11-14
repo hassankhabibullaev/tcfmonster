@@ -1,53 +1,38 @@
-/**
- * Tâche 2 — the examiner's role-play brain. Pure module (no bindings, type-only imports) so the live session and
- * the tests use exactly the same prompt and the same checks.
- *
- * She is a real person with her business in her head, not a script: she answers the question she is asked with the
- * fact itself, the way people do on the phone — short, sometimes with a small hesitation, never a recitation. The task
- * still tests whether the candidate can OBTAIN information: she does not pour out the rest of the sheet, never
- * suggests the next question, and a vague question gets a clarification, not a guess.
- */
 import type { GeneratedPrompt } from "./types.ts";
-
 export type Register = "tu" | "vous";
-/** who the examiner is for the candidate in a Tâche 2 card; a friend, colleague, neighbour, relative or classmate is addressed with « tu » */
 export type Relation = "ami" | "collegue" | "voisin" | "famille" | "camarade" | "professionnel" | "inconnu";
-export const RELATION: Record<Relation, { register: Register; role: string }> = {
-  ami: { register: "tu", role: "une amie du candidat" },
-  collegue: { register: "tu", role: "une collègue du candidat" },
-  voisin: { register: "tu", role: "une voisine du candidat" },
-  famille: { register: "tu", role: "une personne de la famille du candidat" },
-  camarade: { register: "tu", role: "une camarade du candidat" },
-  professionnel: { register: "vous", role: "la professionnelle décrite dans la situation" },
-  inconnu: { register: "vous", role: "la personne décrite dans la situation" },
+export const RELATION: Record<Relation, {
+    register: Register;
+    role: string;
+}> = {
+    ami: { register: "tu", role: "une amie du candidat" },
+    collegue: { register: "tu", role: "une collègue du candidat" },
+    voisin: { register: "tu", role: "une voisine du candidat" },
+    famille: { register: "tu", role: "une personne de la famille du candidat" },
+    camarade: { register: "tu", role: "une camarade du candidat" },
+    professionnel: { register: "vous", role: "la professionnelle décrite dans la situation" },
+    inconnu: { register: "vous", role: "la personne décrite dans la situation" },
 };
-
 export const registerOf = (p: Pick<GeneratedPrompt, "roleplay">): Register => (p.roleplay?.register === "tu" ? "tu" : "vous");
-
 const VOICE: Record<string, string> = {
-  naturel: "Débit naturel de conversation, ni lent ni pressé.",
-  rapide: "Débit soutenu, sans avaler les mots.",
-  lent: "Débit légèrement ralenti mais fluide, articulation nette.",
+    naturel: "Débit naturel de conversation, ni lent ni pressé.",
+    rapide: "Débit soutenu, sans avaler les mots.",
+    lent: "Débit légèrement ralenti mais fluide, articulation nette.",
 };
-
-/** The examiner's fixed lines around the role-play; she says them herself (see RealtimeExaminer.say). */
 export const ROLEPLAY_LINES = {
-  /** end of the preparation time: the candidate opens the exchange */
-  go: "Alors, c'est à vous. Je vous écoute.",
-  /** long silence, said in the role */
-  relance: { vous: "Vous vouliez savoir autre chose ?", tu: "Tu voulais savoir autre chose ?" } as Record<Register, string>,
+    go: "Alors, c'est à vous. Je vous écoute.",
+    relance: { vous: "Vous vouliez savoir autre chose ?", tu: "Tu voulais savoir autre chose ?" } as Record<Register, string>,
 };
 export const relanceFor = (p: Pick<GeneratedPrompt, "roleplay">) => ROLEPLAY_LINES.relance[registerOf(p)];
-
-/** The examiner's system prompt for the Tâche 2 role-play. */
-export function roleplaySystem(p: Pick<GeneratedPrompt, "consigne" | "roleplay">, opts: { pace?: string } = {}): string {
-  const role = p.roleplay?.examinerRole ?? "l'interlocuteur indiqué dans la situation";
-  const tu = registerOf(p) === "tu";
-  const points = cardPoints(p.consigne);
-  /** the same rule, worded for a stranger or for someone she knows */
-  const v = (vous: string, close: string) => (tu ? close : vous);
-  const place = /propri|locataire|particulier|voisin/i.test(`${role} ${p.consigne}`) ? "chez toi" : "à ton travail";
-  return `# Qui tu es
+export function roleplaySystem(p: Pick<GeneratedPrompt, "consigne" | "roleplay">, opts: {
+    pace?: string;
+} = {}): string {
+    const role = p.roleplay?.examinerRole ?? "l'interlocuteur indiqué dans la situation";
+    const tu = registerOf(p) === "tu";
+    const points = cardPoints(p.consigne);
+    const v = (vous: string, close: string) => (tu ? close : vous);
+    const place = /propri|locataire|particulier|voisin/i.test(`${role} ${p.consigne}`) ? "chez toi" : "à ton travail";
+    return `# Qui tu es
 Tu es ${role} : une vraie personne, ${v(`${place}, qui répond au téléphone ou à l'accueil. Un candidat au TCF Canada joue le client.`, "qui discute avec quelqu'un qu'elle connaît bien (un ami, un collègue ou un voisin), de vive voix ou au téléphone. Un candidat au TCF Canada joue cette personne.")} La situation, telle que tu viens de la lui lire (« je », c'est toi ; « vous », c'est lui) : ${p.consigne}
 Dans cet échange — à partir de la première question du candidat, et seulement là — tu n'es pas examinatrice : tu es cette personne, et rien d'autre (avant, en lisant la situation et en annonçant la préparation, tu es l'examinatrice, ton neutre). Français, ${v("vouvoiement", "tutoiement : vous vous connaissez, tu lui dis « tu ». S'il te dit « vous », tu continues à le tutoyer, sans le faire remarquer")}.
 
@@ -85,51 +70,44 @@ Tu n'attends rien de lui : il n'a pas de liste à deviner. Les seuls points qu'i
 - Consigne de régie (une phrase à dire, entre guillemets) : tu la dis telle quelle, sans rien ajouter.
 
 # Exemples (${v("le client", "il")} demande → toi)
-${v(
-  `- « Bonjour, je vous appelle pour des informations sur vos cours. » → « Oui, bonjour. Je vous écoute. »
+${v(`- « Bonjour, je vous appelle pour des informations sur vos cours. » → « Oui, bonjour. Je vous écoute. »
 - « Les prix, c'est combien ? » → « 280 dollars. » (s'il demande pour combien de temps : « Pour dix semaines. »)
 - « Quels jours ? » → « Le mardi et le jeudi. »
 - « Il y a des cours le matin ? » → « Non. » (s'il insiste : « Seulement le soir. »)
 - « Et le paiement ? » → « Par carte ou par virement. »
 - « Il y a un parking près du centre ? » (pas dans ce que tu sais) → « Oui, un petit, derrière. »
 - « Et la chose pour avant, c'est comment ? » → « Pardon, vous parlez de quoi ? »
-- « Merci, au revoir. » → « Au revoir. »`,
-  `- « Salut ! Tu m'en as parlé l'autre jour, je peux te poser quelques questions ? » → « Oui, vas-y. »
+- « Merci, au revoir. » → « Au revoir. »`, `- « Salut ! Tu m'en as parlé l'autre jour, je peux te poser quelques questions ? » → « Oui, vas-y. »
 - « Alors, ça se passe comment ? » → « Ben, on se retrouve le mardi soir, à la piscine. »
 - « Tu le vends combien ? » → « 120 dollars. »
 - « Le prix est négociable ? » → « Un peu, oui. »
 - « Qu'est-ce qui t'a le plus plu ? » → « Le Vieux-Québec, le soir. »
 - « Et pour faire les courses, il y a un supermarché ? » (pas dans ce que tu sais) → « Oui, au bout de la rue. »
 - « Et le truc pour avant, c'est comment ? » → « Pardon, tu parles de quoi ? »
-- « Merci, ça m'aide vraiment. À bientôt ! » → « De rien, à bientôt. »`,
-)}`;
+- « Merci, ça m'aide vraiment. À bientôt ! » → « De rien, à bientôt. »`)}`;
 }
-/**
- * The points the card asks the candidate to cover, from the parenthesis of the situation: « … vous me posez des
- * questions (durée, quantité autorisée, conditions, etc.) » → durée, quantité autorisée, conditions. The evaluation
- * checks that the candidate's questions went through them (« etc. » means more are welcome).
- */
 export function cardPoints(consigne: string): string[] {
-  const m = /\(([^()]*)\)\s*\.?\s*$/.exec(consigne.trim());
-  if (!m) return [];
-  const out: string[] = [];
-  for (const raw of m[1].split(/[,;]/)) {
-    const p = raw.replace(/\b(etc\.?|…)\s*$/i, "").replace(/^\s*(et|ou)\s+/i, "").trim();
-    if (p && !/^etc\.?$/i.test(p) && !out.includes(p)) out.push(p);
-  }
-  return out;
+    const m = /\(([^()]*)\)\s*\.?\s*$/.exec(consigne.trim());
+    if (!m)
+        return [];
+    const out: string[] = [];
+    for (const raw of m[1].split(/[,;]/)) {
+        const p = raw.replace(/\b(etc\.?|…)\s*$/i, "").replace(/^\s*(et|ou)\s+/i, "").trim();
+        if (p && !/^etc\.?$/i.test(p) && !out.includes(p))
+            out.push(p);
+    }
+    return out;
 }
-
-/* ---------- what she did wrong (pure text checks) ---------- */
-
 const wordCount = (t: string) => t.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
-
 const ALLOWED_QUESTION = /(r[ée]p[ée]ter|pr[ée]ciser|d'autres questions|autre chose|(?:vous parlez|tu parles) de|pas bien compris|(?:vous voulez|tu veux) dire|lequel|laquelle|quel (?:panier|cours|jour|formule|niveau|moment))/i;
-export type ReplyCheck = { hint: boolean; evasive: boolean; tooLong: boolean };
-/** Defects of one reply: a lead or a question put to the candidate, dodging, too many words. */
+export type ReplyCheck = {
+    hint: boolean;
+    evasive: boolean;
+    tooLong: boolean;
+};
 export function checkReply(reply: string): ReplyCheck {
-  const asks = reply.includes("?") && !ALLOWED_QUESTION.test(reply);
-  const offers = /(si (?:vous voulez|tu veux)|si vous le souhaitez|n'h[ée]site(?:z)? pas|je peux (aussi|vous|te)|si (?:vous avez|tu as) d'autres questions|je suis l[àa]|dites-moi|dis-moi)/i.test(reply);
-  const evasive = /(pas d'information|pas cette information|je ne sais pas|je ne peux pas (te|vous) (le |la |les )?(dire|confirmer)|pas (certaine|s[uû]re)|v[ée]rifi|je regarde|pas (indiqu|mentionn|pr[ée]cis)[ée])/i.test(reply);
-  return { hint: asks || offers, evasive, tooLong: wordCount(reply) > 12 };
+    const asks = reply.includes("?") && !ALLOWED_QUESTION.test(reply);
+    const offers = /(si (?:vous voulez|tu veux)|si vous le souhaitez|n'h[ée]site(?:z)? pas|je peux (aussi|vous|te)|si (?:vous avez|tu as) d'autres questions|je suis l[àa]|dites-moi|dis-moi)/i.test(reply);
+    const evasive = /(pas d'information|pas cette information|je ne sais pas|je ne peux pas (te|vous) (le |la |les )?(dire|confirmer)|pas (certaine|s[uû]re)|v[ée]rifi|je regarde|pas (indiqu|mentionn|pr[ée]cis)[ée])/i.test(reply);
+    return { hint: asks || offers, evasive, tooLong: wordCount(reply) > 12 };
 }

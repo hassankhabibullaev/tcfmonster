@@ -1,4 +1,4 @@
-/* tcf.monster — public site. Every value comes from tokens.css (the design system). */
+
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-sans); font-size: 16px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
@@ -12,13 +12,12 @@ sup { font-size: .7em; line-height: 0; }
 .wrap { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 32px; }
 .spacer { flex: 1; }
 
-/* type */
 h1, h2, h3, h4 { margin: 0; }
 h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(40px, 5.4vw, 64px); line-height: 1.03; letter-spacing: -0.02em; }
 h2 { font-family: var(--font-display); font-weight: 700; font-size: clamp(30px, 3.6vw, 44px); line-height: 1.08; letter-spacing: -0.015em; }
 h3 { font-weight: 800; font-size: 20px; line-height: 1.25; letter-spacing: -0.01em; }
 p { margin: 0; }
-/* light or dark: the app's switch (the shared block below), the moon in the light, the sun in the dark */
+
 .theme-switch svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .theme-sun, :root[data-theme="dark"] .theme-moon { display: none; }
 :root[data-theme="dark"] .theme-sun { display: block; }
@@ -28,26 +27,22 @@ p { margin: 0; }
 .mark svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .mark.big { font-size: 26px; color: var(--accent); }
 
-/* buttons: the shared block below, and the hero's large one */
 .btn.lg { height: 56px; padding: 0 30px; font-size: 16px; }
 
-/* header */
 .top { position: sticky; top: 0; z-index: 30; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--line); }
-/* in-app browsers (Telegram, Instagram) float their own bar over the page and stick the header below it: the page used to
-   scroll through the strip above. The header's colour reaches up and covers it (off-screen in every other browser). */
+
 .top::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 160px; background: var(--bg); pointer-events: none; }
 .top .wrap { display: flex; align-items: center; gap: 12px; height: 72px; }
 .top .brand { margin-right: 16px; }
 .top nav { display: flex; gap: 2px; }
 .top nav a { white-space: nowrap; text-decoration: none; font-weight: 700; font-size: 15px; color: var(--ink-muted); padding: 8px 12px; border-radius: var(--radius-pill); }
 .top nav a:hover { color: var(--ink); background: var(--surface-2); }
-/* the bar for a visitor (sign in, start) or for a signed-in person (the dashboard): the Worker marks the page */
+
 .only-in, :root[data-signed-in] .only-out { display: none !important; }
 :root[data-signed-in] .only-in { display: inline-flex !important; }
 .link-signin { font-weight: 800; font-size: 15px; text-decoration: none; white-space: nowrap; margin: 0 6px; }
 .link-signin:hover { text-decoration: underline; text-underline-offset: 4px; }
 
-/* hero */
 .hero { padding: 80px 0 72px; overflow: hidden; }
 .hero-grid { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 56px; align-items: center; }
 .hero-copy { display: flex; flex-direction: column; gap: 24px; align-items: flex-start; }
@@ -55,8 +50,6 @@ p { margin: 0; }
 .pill-sun { display: inline-block; background: var(--sun-soft); color: var(--ink); border: 1.5px solid var(--sun); font-weight: 800; font-size: 13px; padding: 6px 12px; border-radius: var(--radius-pill); }
 .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
 
-
-/* the player: the application playing in a window, four tabs under it (one per test), each tab's line filling */
 .player { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .player-screen { position: relative; border: 2px solid var(--ink); border-radius: 22px; box-shadow: 0 8px 0 var(--ink); overflow: hidden; background: var(--bg); }
 .player-tabs { display: flex; gap: 8px; justify-content: center; }
@@ -67,7 +60,6 @@ p { margin: 0; }
 .player-tabs button i { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--accent); transform-origin: left; transform: scaleX(0); }
 .player-tabs button[aria-selected="true"] i { transform: scaleX(var(--p, 0)); }
 
-/* a section of copy beside a scene (the mock exam, Monster AI) */
 .split { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 64px; align-items: center; }
 .split.reverse .split-copy { order: 2; }
 .split-copy { display: flex; flex-direction: column; gap: 20px; }
@@ -80,7 +72,6 @@ p { margin: 0; }
 .kicker .mai-name { font-size: 15px; }
 .kicker .mai-powered { font-size: 12px; }
 
-/* free: the founder's words, and what there is not */
 .free { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 64px; align-items: center; }
 .free-copy { display: flex; flex-direction: column; gap: 18px; }
 .free-copy .big { font-size: 20px; line-height: 1.6; }
@@ -93,7 +84,6 @@ p { margin: 0; }
 .nos li.yes { background: var(--ok-soft); border-color: var(--ok); }
 .nos li.yes svg { background: var(--ok); color: var(--surface); }
 
-/* facts */
 .facts { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--surface); }
 .facts-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .facts-grid > div { padding: 28px 24px; display: flex; flex-direction: column; gap: 4px; border-left: 1px solid var(--line); }
@@ -101,7 +91,6 @@ p { margin: 0; }
 .facts strong { font-family: var(--font-display); font-weight: 700; font-size: 30px; line-height: 1.1; letter-spacing: -0.01em; }
 .facts span { font-size: 14px; font-weight: 700; color: var(--ink-muted); }
 
-/* sections */
 .band { padding: 104px 0; scroll-margin-top: 72px; }
 .band.tint { background: var(--surface-2); }
 .section-head { display: flex; flex-direction: column; gap: 14px; max-width: 760px; margin-bottom: 48px; }
@@ -115,7 +104,6 @@ p { margin: 0; }
 .test-card li { display: flex; gap: 10px; }
 .test-card li::before { content: ""; flex: none; width: 6px; height: 6px; margin-top: 9px; border-radius: 50%; background: var(--accent); }
 
-/* the public chat: why and the three topics at the left, a small Telegram chat at the right */
 .chat-split { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 64px; align-items: center; }
 .chat-copy { display: flex; flex-direction: column; gap: 18px; }
 .chat-copy .big { font-size: 19px; line-height: 1.6; color: var(--ink-muted); }
@@ -135,7 +123,7 @@ p { margin: 0; }
 .chat-head small { display: block; font-size: 13px; color: var(--ink-muted); }
 .chat-log { display: flex; flex-direction: column; gap: 8px; padding: 18px 16px 20px; min-height: 360px; background: var(--surface-2); }
 .bub { max-width: 82%; margin: 0; padding: 10px 14px; border-radius: 16px 16px 16px 4px; background: var(--surface); border: 1px solid var(--line); font-size: 14px; line-height: 1.45; align-self: flex-start; opacity: 0; transform: translateY(8px); animation: bub-in .45s var(--ease-out) forwards; animation-play-state: paused; }
-/* the chat starts talking when it comes into view (site.js adds .seen) */
+
 .chat-phone.seen .bub { animation-play-state: running; }
 .bub.me { align-self: flex-end; border-radius: 16px 16px 4px 16px; background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .bub:nth-child(1) { animation-delay: .2s; } .bub:nth-child(2) { animation-delay: .9s; } .bub:nth-child(3) { animation-delay: 1.6s; }
@@ -147,7 +135,6 @@ p { margin: 0; }
 @keyframes typing { 0%, 60%, 100% { opacity: .3; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
 @media (prefers-reduced-motion: reduce) { .bub { opacity: 1; transform: none; animation: none; } .bub.typing i { animation: none; } }
 
-/* the donation card, the same as the app's: terracotta, a heart, one button, the note of the payment page */
 .support { max-width: 720px; margin: 0 auto; background: var(--accent); color: var(--on-accent); border: 2px solid var(--ink); border-radius: var(--radius-lg); box-shadow: 0 6px 0 var(--ink); padding: 40px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; }
 .support-heart { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--on-accent) 12%, transparent); margin-bottom: 4px; }
 .support-heart svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -191,7 +178,6 @@ p { margin: 0; }
 .footer-legal { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); }
 .footer-legal p { font-size: 13px; color: var(--ink-muted); max-width: 70em; }
 
-/* legal pages and 404 */
 .page-title { font-size: 40px; }
 .page-title.spaced { margin-top: 24px; }
 .wrap.start { align-items: flex-start; }
@@ -200,7 +186,7 @@ p { margin: 0; }
 .legal h2 { font-size: 22px; font-family: var(--font-sans); font-weight: 800; margin-top: 16px; }
 .legal p, .legal li { font-size: 16px; color: var(--ink); }
 .legal .note { font-size: 14px; color: var(--ink-muted); }
-/* the releases page (changes.html): one bordered block a release, its three groups under it */
+
 .changes .release-entry { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; padding: 24px 26px; border: 2px solid var(--ink); border-radius: 20px; background: var(--surface); }
 .changes .release-entry h2 { margin-top: 0; }
 .changes h3 { font-size: 17px; font-weight: 800; margin-top: 10px; }
@@ -235,29 +221,20 @@ footer { border-top: 1px solid var(--line); }
   * { transition-duration: 1ms !important; animation-duration: 1ms !important; }
 }
 
-/* shared:brand — the wordmark and the lockup (the app icon beside the name), the same in the app, the admin and the
-   public site. site/styles.css holds an exact copy (tests/site.test.ts keeps them equal). */
 .wordmark { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; font-size: 24px; white-space: nowrap; color: var(--ink); text-decoration: none; }
 .wordmark.small { font-size: 20px; }
 .wordmark .dot { color: var(--accent); }
 .brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
 .brand .logo { display: block; flex: none; width: 32px; height: 32px; border-radius: 50%; }
-/* « Bêta »: the app is in its first public version; one small label beside the wordmark */
-.beta-tag { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; margin-left: 6px; border-radius: var(--radius-pill); background: var(--sun-soft); border: 1px solid var(--sun); font-family: var(--font-mono); font-weight: 700; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink); white-space: nowrap; vertical-align: middle; }
-/* shared:brand end */
 
-/* shared:mai — Monster AI: one wordmark in the font and size of the text around it, lit by the accent and the sun
-   sweeping across, with a faint glow; « propulsé par Gemini » after it in small muted type. The same in the app and on
-   the public site (site/styles.css holds an exact copy; tests/site.test.ts keeps them equal). */
+.beta-tag { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; margin-left: 6px; border-radius: var(--radius-pill); background: var(--sun-soft); border: 1px solid var(--sun); font-family: var(--font-mono); font-weight: 700; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink); white-space: nowrap; vertical-align: middle; }
+
 .mai { white-space: nowrap; }
 .mai-name { font-weight: 800; background: linear-gradient(100deg, var(--accent) 0%, var(--sun) 45%, var(--accent) 100%); background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 .3em color-mix(in srgb, var(--accent) 50%, transparent)); animation: mai-shine 3.2s linear infinite; }
 @keyframes mai-shine { from { background-position: 120% 0; } to { background-position: -100% 0; } }
 .mai-powered { margin-left: .55em; font-size: .7em; font-weight: 700; color: var(--ink-muted); white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .mai-name { animation: none; } }
-/* shared:mai end */
 
-/* shared:buttons — pill, 2 px outline, flat offset shadow that sinks on press; the same in the app, the admin and the
-   public site (site/styles.css holds an exact copy; tests/site.test.ts keeps them equal). */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border-radius: var(--radius-pill); border: var(--border-strong) solid var(--ink); background: var(--surface); color: var(--ink); font: inherit; font-weight: 800; font-size: 15px; text-decoration: none; cursor: pointer; white-space: nowrap; box-shadow: var(--shadow-press); transition: transform var(--duration-quick) var(--ease-out), box-shadow var(--duration-quick) var(--ease-out), background var(--duration-quick); }
 .btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
 .btn.sm { height: 36px; padding: 0 14px; font-size: 14px; }
@@ -269,17 +246,11 @@ footer { border-top: 1px solid var(--line); }
 .btn[aria-busy] { opacity: 1; cursor: progress; }
 .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-/* shared:buttons end */
 
-/* shared:switches — the theme switch and the language pill, the same in the app, the admin and the public site.
-   site/styles.css holds an exact copy (tests/site.test.ts keeps them equal). */
 .theme-switch, .lang-toggle { width: 40px; height: 40px; border: 0; border-radius: 50%; background: none; color: var(--ink-muted); display: grid; place-items: center; cursor: pointer; font: inherit; font-weight: 800; font-size: 12px; letter-spacing: .04em; transition: background var(--duration-quick), color var(--duration-quick), transform var(--duration-quick); }
 .theme-switch:hover, .lang-toggle:hover { background: var(--surface); color: var(--ink); }
 .theme-switch:hover { transform: rotate(15deg); }
-/* the language pill. `.lang` keeps a 40 px footprint in the rail; the pill inside is anchored at its bottom and grows
-   upward (40 → 80 px) when open. The track holds EN over FR (40 px each) and is anchored at the pill's bottom: closed
-   on EN it sits 40 px lower so EN shows in the one visible slot; open, it rises with the pill. The thumb (the dark
-   disc) sits under the language in use and slides between the two. Size, offset and thumb share one timing. */
+
 .lang { --lang-s: 40px; position: relative; width: var(--lang-s); height: var(--lang-s); margin-bottom: 2px; flex: none; }
 .lang-pill { position: absolute; left: 0; bottom: 0; width: var(--lang-s); height: var(--lang-s); border-radius: calc(var(--lang-s) / 2); box-shadow: inset 0 0 0 1.5px var(--line); background: var(--surface); overflow: hidden; z-index: 5; transition: height var(--duration-move) var(--ease-out), width var(--duration-move) var(--ease-out), box-shadow var(--duration-move) var(--ease-out); }
 .lang[data-open] .lang-pill { height: calc(var(--lang-s) * 2); box-shadow: inset 0 0 0 1.5px var(--line), var(--shadow-float); }
@@ -293,8 +264,7 @@ footer { border-top: 1px solid var(--line); }
 .lang[data-open] .lang-opt[data-now] { color: var(--bg); }
 .lang[data-open] .lang-opt:not([data-now]):hover { color: var(--ink); }
 .lang-opt:focus-visible { outline: 2px solid var(--focus); outline-offset: -4px; border-radius: 50%; }
-/* the pill grows to the left instead (a top bar): anchored at its right, the track a row EN · FR; closed on EN it sits
-   one size further right so EN shows in the visible slot */
+
 .lang[data-dir="left"] { margin-bottom: 0; }
 .lang[data-dir="left"] .lang-pill { left: auto; right: 0; top: 0; bottom: auto; }
 .lang[data-dir="left"][data-open] .lang-pill { width: calc(var(--lang-s) * 2); height: var(--lang-s); }
@@ -302,13 +272,7 @@ footer { border-top: 1px solid var(--line); }
 .lang[data-dir="left"]:not([data-open])[data-lang="en"] .lang-track { transform: translateX(var(--lang-s)); }
 .lang[data-dir="left"] .lang-opt { width: var(--lang-s); height: 100%; }
 .lang[data-dir="left"][data-lang="fr"] .lang-thumb { transform: translateX(var(--lang-s)); }
-/* shared:switches end */
 
-/* shared:examiner — the examiner's portrait, the same in the app and on the public site (site/styles.css holds an
-   exact copy; tests/site.test.ts keeps them equal). */
-/* the examiner's portrait: a shaded figure before an office out of focus. The surroundings follow the tokens (the
-   wall and the sheet with the theme, the jacket and the lips terracotta); her face keeps its own colours, drawn in the
-   SVG itself, so it reads the same in light and dark. */
 .iv { display: flex; flex-direction: column; align-items: center; gap: 10px; width: min(360px, 100%); }
 .iv-frame { position: relative; width: 100%; border-radius: var(--radius-lg); overflow: hidden; border: var(--border-strong) solid var(--ink); box-shadow: var(--shadow-press); background: var(--surface-2); transition: box-shadow var(--duration-move); }
 .iv svg { width: 100%; height: auto; display: block; }
@@ -342,7 +306,7 @@ footer { border-top: 1px solid var(--line); }
 .iv-lip-shine { fill: none; stroke: var(--accent-soft); stroke-width: 1.4; stroke-linecap: round; opacity: .75; }
 .iv-sheet { fill: var(--surface); stroke: var(--line); }
 .iv-rule { stroke: var(--line); stroke-width: 1.6; stroke-linecap: round; }
-/* life: sway, blink, breathe, nod while she listens, read her sheet while the candidate prepares, ponder before a reply */
+
 .iv-head { transform-box: fill-box; transform-origin: 50% 90%; animation: iv-sway 7s ease-in-out infinite; }
 @keyframes iv-sway { 0%, 100% { transform: rotate(0deg); } 30% { transform: rotate(-0.9deg) translateY(.6px); } 65% { transform: rotate(.8deg) translateY(-.4px); } }
 .iv[data-listening="true"] .iv-head { animation: iv-nod 5.5s ease-in-out infinite; }
@@ -375,19 +339,17 @@ footer { border-top: 1px solid var(--line); }
 @keyframes iv-ponder { 0%, 100% { transform: rotate(0deg); } 40% { transform: rotate(.9deg) translateY(-1.2px); } 70% { transform: rotate(-.4deg) translateY(.4px); } }
 .iv[data-pondering="true"] .iv-frame { animation: iv-pulse 1.6s ease-in-out infinite; }
 @keyframes iv-pulse { 50% { box-shadow: 0 3px 0 var(--ink), 0 0 0 5px var(--sun-soft); } }
-/* shared:examiner end */
 
-/* phones: one block, after the shared blocks so it wins over them */
 @media (max-width: 560px) {
   .wrap { padding: 0 16px; }
   .top .wrap { gap: 6px; height: 56px; }
-  /* shared:brand-phone — the lockup on a phone's top bar (site/styles.css holds an exact copy in its phone block) */
+  
   .brand .logo { width: 30px; height: 30px; }
   .brand .wordmark { font-size: 20px; }
   .theme-switch { width: 36px; height: 36px; }
   .lang { --lang-s: 36px; }
-  /* shared:brand-phone end */
-  /* the hero holds the one button on a phone; the bar keeps the name, the language and the theme */
+  
+  
   .top .btn, :root[data-signed-in] .top .only-in { display: none !important; }
   .lead { font-size: 18px; }
   .hero-actions, .hero-actions .btn { width: 100%; }
@@ -399,5 +361,4 @@ footer { border-top: 1px solid var(--line); }
   .footer-grid { grid-template-columns: 1fr; }
 }
 
-/* the abuse guard's trap (worker/guard.ts TRAPS): off the screen, out of the tab order, hidden from screen readers */
 .hp { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }

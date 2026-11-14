@@ -1,6 +1,3 @@
-// A CO / CE section: the head and the Examen | Entraînement tabs (the same as EE / EO), then either the exam tiles (shared/exams.ts)
-// (/co, the first tab) or the six levels (/co/practice) under a search field: two characters typed load the six level
-// files once and list up to twenty questions, each opening the room at that question (`?q=37`).
 import { cached } from "../../api-cache.ts";
 import { useEffect, useMemo, useState } from "react";
 import { Chip, ColourBar, Button, Empty, Icon, SectionHead, Tabs, SECTION_NAME } from "../../../ui/ui.tsx";
@@ -14,68 +11,58 @@ import { searchQuestions, type Hit } from "./search.ts";
 import { isRunning, latestScore, EXAMS, type AttemptRow, type CoceSection } from "./shared.ts";
 import { isFresh, localDay } from "../../../../shared/exams.ts";
 import type { BankIndex } from "../bank.ts";
-
-/** what joined the bank less than 30 days ago (shared/exams.ts): the exam numbers, and the new questions per level */
 function freshOf(index: BankIndex | null | undefined, section: CoceSection) {
-  const day = localDay();
-  const exams = new Set<number>();
-  const levels: Partial<Record<Level, number>> = {};
-  for (const b of index?.added ?? []) {
-    if (!isFresh(b.day, day)) continue;
-    for (const n of b.exams?.[section] ?? []) exams.add(n);
-    for (const [lv, n] of Object.entries(b.levels?.[section] ?? {})) levels[lv as Level] = (levels[lv as Level] ?? 0) + (n ?? 0);
-  }
-  return { exams, levels };
+    const day = localDay();
+    const exams = new Set<number>();
+    const levels: Partial<Record<Level, number>> = {};
+    for (const b of index?.added ?? []) {
+        if (!isFresh(b.day, day))
+            continue;
+        for (const n of b.exams?.[section] ?? [])
+            exams.add(n);
+        for (const [lv, n] of Object.entries(b.levels?.[section] ?? {}))
+            levels[lv as Level] = (levels[lv as Level] ?? 0) + (n ?? 0);
+    }
+    return { exams, levels };
 }
-
 export type SectionPageProps = {
-  section: CoceSection;
-  mode: "examen" | "entrainement";
-  lang: Lang;
-  /** `me.settings` and its saver: accepted from the integrator, read by nothing here any more */
-  settings?: Record<string, unknown> | null;
-  onSettings?: (patch: Record<string, unknown>) => void | Promise<void>;
+    section: CoceSection;
+    mode: "examen" | "entrainement";
+    lang: Lang;
+    settings?: Record<string, unknown> | null;
+    onSettings?: (patch: Record<string, unknown>) => void | Promise<void>;
 };
-
 export function SectionPage({ section, mode, lang }: SectionPageProps) {
-  const w = WORDS[lang];
-  // the phone: the search field folds behind one round button in the title row (the laptop shows the field itself)
-  const [searchOpen, setSearchOpen] = useState(false);
-  useEffect(() => { setSearchOpen(false); }, [section, mode]);
-  return (
-    <div className="section-page cp-page" data-search={searchOpen || undefined}>
-      <SectionHead s={section} name={SECTION_NAME[section]} right={mode === "entrainement" ? (
-        <button type="button" className="cp-search-btn mob-only" aria-label={w.search} aria-pressed={searchOpen} onClick={() => setSearchOpen((o) => !o)}><Icon name="search" size={16} /></button>
-      ) : undefined} />
+    const w = WORDS[lang];
+    const [searchOpen, setSearchOpen] = useState(false);
+    useEffect(() => { setSearchOpen(false); }, [section, mode]);
+    return (<div className="section-page cp-page" data-search={searchOpen || undefined}>
+      <SectionHead s={section} name={SECTION_NAME[section]} right={mode === "entrainement" ? (<button type="button" className="cp-search-btn mob-only" aria-label={w.search} aria-pressed={searchOpen} onClick={() => setSearchOpen((o) => !o)}><Icon name="search" size={16}/></button>) : undefined}/>
       <Tabs label={w.modeLabel} items={[
-        { label: w.entrainement, current: mode === "entrainement", props: linkProps(`/${section}`) },
-        { label: w.examen, current: mode === "examen", props: linkProps(`/${section}/exam`) },
-      ]} />
-      {mode === "entrainement" ? <Practice section={section} lang={lang} /> : <Exams section={section} lang={lang} />}
-    </div>
-  );
+            { label: w.entrainement, current: mode === "entrainement", props: linkProps(`/${section}`) },
+            { label: w.examen, current: mode === "examen", props: linkProps(`/${section}/exam`) },
+        ]}/>
+      {mode === "entrainement" ? <Practice section={section} lang={lang}/> : <Exams section={section} lang={lang}/>}
+    </div>);
 }
-
-/* ---------- Entraînement: six levels, the legend ---------- */
-
-function Practice({ section, lang }: { section: CoceSection; lang: Lang }) {
-  const w = WORDS[lang];
-  const { levels } = useSection(section);
-  const index = useIndex();
-  const fresh = freshOf(index, section);
-
-  if (!levels || index === undefined) {
-    return <div className="cp-levels" aria-busy="true">{LEVELS.map((l) => <div key={l} className="skeleton cp-skel-row" />)}</div>;
-  }
-  return (
-    <>
-      <Search section={section} lang={lang} />
+function Practice({ section, lang }: {
+    section: CoceSection;
+    lang: Lang;
+}) {
+    const w = WORDS[lang];
+    const { levels } = useSection(section);
+    const index = useIndex();
+    const fresh = freshOf(index, section);
+    if (!levels || index === undefined) {
+        return <div className="cp-levels" aria-busy="true">{LEVELS.map((l) => <div key={l} className="skeleton cp-skel-row"/>)}</div>;
+    }
+    return (<>
+      <Search section={section} lang={lang}/>
       <ul className="cp-levels">
         {LEVELS.map((level) => {
-          const n = levelSize(index, section, level);
-          const c = counts(levels[level], n);
-          return (
-            <li key={level} className="card cp-level">
+            const n = levelSize(index, section, level);
+            const c = counts(levels[level], n);
+            return (<li key={level} className="card cp-level">
               <span className="cp-level-name" data-fresh={fresh.levels[level] ? "" : undefined}>{level}</span>
               <span className="cp-level-meta">
                 <strong className="desk-only">{w.questions(n)}{!!fresh.levels[level] && <span className="cp-level-new">{w.addedN(fresh.levels[level]!)}</span>}</strong>
@@ -83,138 +70,126 @@ function Practice({ section, lang }: { section: CoceSection; lang: Lang }) {
                 <span className="cp-level-m mob-only num"><span>{w.seenOf(c.green + c.amber + c.red, n)}</span>{!!fresh.levels[level] && <span className="cp-level-new" title={w.addedN(fresh.levels[level]!)} aria-label={w.addedN(fresh.levels[level]!)}>+{fresh.levels[level]}</span>}<span>{w.pts(POINTS[level])}</span></span>
               </span>
               <span className="cp-bar">
-                <ColourBar ok={c.green} amber={c.amber} bad={c.red} total={n} />
+                <ColourBar ok={c.green} amber={c.amber} bad={c.red} total={n}/>
                 <span className="cp-counts num small">
-                  <span className="ok-text"><i className="cp-dot ok" />{c.green}</span>
-                  <span className="cp-amber"><i className="cp-dot amber" />{c.amber}</span>
-                  <span className="bad-text"><i className="cp-dot bad" />{c.red}</span>
-                  <span className="muted"><i className="cp-dot new" />{c.grey}</span>
+                  <span className="ok-text"><i className="cp-dot ok"/>{c.green}</span>
+                  <span className="cp-amber"><i className="cp-dot amber"/>{c.amber}</span>
+                  <span className="bad-text"><i className="cp-dot bad"/>{c.red}</span>
+                  <span className="muted"><i className="cp-dot new"/>{c.grey}</span>
                 </span>
               </span>
               <span className="cp-open cp-acts">
-                <a className="btn sm" aria-label={w.open} {...linkProps(`/${section}/practice/${level}`)}><span className="desk-only">{w.open}</span><Icon name="chevronRight" size={18} className="mob-only" /></a>
+                <a className="btn sm" aria-label={w.open} {...linkProps(`/${section}/practice/${level}`)}><span className="desk-only">{w.open}</span><Icon name="chevronRight" size={18} className="mob-only"/></a>
               </span>
-            </li>
-          );
+            </li>);
         })}
       </ul>
       <p className="cp-legend">
-        <span><i className="cp-dot new" />{w.legend.grey}</span>
-        <span><i className="cp-dot ok" />{w.legend.green}</span>
-        <span><i className="cp-dot bad" />{w.legend.red}</span>
-        <span><i className="cp-dot amber" />{w.legend.amber}</span>
+        <span><i className="cp-dot new"/>{w.legend.grey}</span>
+        <span><i className="cp-dot ok"/>{w.legend.green}</span>
+        <span><i className="cp-dot bad"/>{w.legend.red}</span>
+        <span><i className="cp-dot amber"/>{w.legend.amber}</span>
       </p>
-    </>
-  );
+    </>);
 }
-
-/* ---------- the search: the six level files, loaded once at the first keystroke; up to twenty hits ---------- */
-
 type Bank = Partial<Record<Level, Question[]>>;
 const banks: Partial<Record<CoceSection, Promise<Bank>>> = {};
 const loadBank = (section: CoceSection) => (banks[section] ??= Promise.all(LEVELS.map((l) => loadLevel(section, l).then((qs) => [l, qs] as const)))
-  .then((pairs) => Object.fromEntries(pairs) as Bank)
-  .catch((e) => { delete banks[section]; throw e; }));
-
-function Search({ section, lang }: { section: CoceSection; lang: Lang }) {
-  const w = WORDS[lang];
-  const [q, setQ] = useState("");
-  const [bank, setBank] = useState<Bank | null | "failed">(null);
-  useEffect(() => {
-    if (!q || bank) return;
-    let live = true;
-    loadBank(section).then((b) => live && setBank(b)).catch(() => live && setBank("failed"));
-    return () => { live = false; };
-  }, [q, bank, section]);
-  const query = q.trim();
-  const hits = useMemo<Hit[] | null>(() => (query.length >= 2 && bank && bank !== "failed" ? searchQuestions(bank, LEVELS, query) : null), [bank, query]);
-  return (
-    <div className="cp-search-block">
+    .then((pairs) => Object.fromEntries(pairs) as Bank)
+    .catch((e) => { delete banks[section]; throw e; }));
+function Search({ section, lang }: {
+    section: CoceSection;
+    lang: Lang;
+}) {
+    const w = WORDS[lang];
+    const [q, setQ] = useState("");
+    const [bank, setBank] = useState<Bank | null | "failed">(null);
+    useEffect(() => {
+        if (!q || bank)
+            return;
+        let live = true;
+        loadBank(section).then((b) => live && setBank(b)).catch(() => live && setBank("failed"));
+        return () => { live = false; };
+    }, [q, bank, section]);
+    const query = q.trim();
+    const hits = useMemo<Hit[] | null>(() => (query.length >= 2 && bank && bank !== "failed" ? searchQuestions(bank, LEVELS, query) : null), [bank, query]);
+    return (<div className="cp-search-block">
       <label className="search cp-search">
-        <Icon name="search" size={18} />
-        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={w.search} aria-label={w.search} />
+        <Icon name="search" size={18}/>
+        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={w.search} aria-label={w.search}/>
       </label>
       {query.length >= 2 && bank === "failed" && <p className="cp-search-none">{w.failed}</p>}
       {query.length >= 2 && bank === null && <p className="cp-search-none" aria-busy="true">…</p>}
       {hits && hits.length === 0 && <p className="cp-search-none">{w.noHits}</p>}
-      {hits && hits.length > 0 && (
-        <ul className="cp-hits">
-          {hits.map((h) => (
-            <li key={`${h.level}-${h.n}`}>
+      {hits && hits.length > 0 && (<ul className="cp-hits">
+          {hits.map((h) => (<li key={`${h.level}-${h.n}`}>
               <a className="cp-hit" {...linkProps(`/${section}/practice/${h.level}?q=${h.n}`)}>
                 <span className="cp-hit-where num">{h.level} · {w.examNo(h.n)}</span>
                 <span className="cp-hit-text" lang="fr">{h.snippet}</span>
               </a>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+            </li>))}
+        </ul>)}
+    </div>);
 }
-
-/* ---------- Examen: one tile an exam, each with its latest score ---------- */
-
-function Exams({ section, lang }: { section: CoceSection; lang: Lang }) {
-  const w = WORDS[lang];
-  const [rows, setRows] = useState<AttemptRow[] | null | undefined>(undefined);
-  const [tries, setTries] = useState(0);
-  useEffect(() => {
-    let live = true;
-    setRows(undefined);
-    cached<{ attempts: AttemptRow[] }>(`/attempts?section=${section}`).then((d) => live && setRows(d.attempts ?? [])).catch(() => live && setRows(null));
-    return () => { live = false; };
-  }, [section, tries]);
-
-  const byExam = useMemo(() => {
-    const m = new Map<number, AttemptRow[]>();
-    for (const a of rows ?? []) { if (a.section !== section) continue; const l = m.get(a.exam) ?? []; l.push(a); m.set(a.exam, l); }
-    return m;
-  }, [rows, section]);
-  const index = useIndex();
-  const fresh = freshOf(index, section);
-  const runningExam = (rows ?? []).find(isRunning)?.exam ?? null;
-  const order = useMemo(() => { const all = Array.from({ length: EXAMS[section] }, (_, i) => i + 1); return runningExam ? [runningExam, ...all.filter((n) => n !== runningExam)] : all; }, [runningExam, section]);
-
-  return (
-    <>
-      {rows === undefined ? (
-        <div className="cp-exams" aria-busy="true">{Array.from({ length: 10 }, (_, i) => <div key={i} className="skeleton cp-skel-card" />)}</div>
-      ) : rows === null ? (
-        <Empty icon={section} title={w.failed}><Button size="sm" icon="refresh" onClick={() => setTries((n) => n + 1)}>{w.retry}</Button></Empty>
-      ) : (
-        <ul className="cp-exams">
+function Exams({ section, lang }: {
+    section: CoceSection;
+    lang: Lang;
+}) {
+    const w = WORDS[lang];
+    const [rows, setRows] = useState<AttemptRow[] | null | undefined>(undefined);
+    const [tries, setTries] = useState(0);
+    useEffect(() => {
+        let live = true;
+        setRows(undefined);
+        cached<{
+            attempts: AttemptRow[];
+        }>(`/attempts?section=${section}`).then((d) => live && setRows(d.attempts ?? [])).catch(() => live && setRows(null));
+        return () => { live = false; };
+    }, [section, tries]);
+    const byExam = useMemo(() => {
+        const m = new Map<number, AttemptRow[]>();
+        for (const a of rows ?? []) {
+            if (a.section !== section)
+                continue;
+            const l = m.get(a.exam) ?? [];
+            l.push(a);
+            m.set(a.exam, l);
+        }
+        return m;
+    }, [rows, section]);
+    const index = useIndex();
+    const fresh = freshOf(index, section);
+    const runningExam = (rows ?? []).find(isRunning)?.exam ?? null;
+    const order = useMemo(() => { const all = Array.from({ length: EXAMS[section] }, (_, i) => i + 1); return runningExam ? [runningExam, ...all.filter((n) => n !== runningExam)] : all; }, [runningExam, section]);
+    return (<>
+      {rows === undefined ? (<div className="cp-exams" aria-busy="true">{Array.from({ length: 10 }, (_, i) => <div key={i} className="skeleton cp-skel-card"/>)}</div>) : rows === null ? (<Empty icon={section} title={w.failed}><Button size="sm" icon="refresh" onClick={() => setTries((n) => n + 1)}>{w.retry}</Button></Empty>) : (<ul className="cp-exams">
           {order.map((n) => {
-            const list = byExam.get(n) ?? [];
-            const running = n === runningExam;
-            const done = list.some((a) => !isRunning(a));
-            const s = latestScore(list);
-            const band = s ? (s.nclc != null && s.nclc >= 7 ? "ok" : s.nclc != null && s.nclc >= 5 ? "amber" : "low") : undefined;
-            return (
-              <li key={n}>
+                const list = byExam.get(n) ?? [];
+                const running = n === runningExam;
+                const done = list.some((a) => !isRunning(a));
+                const s = latestScore(list);
+                const band = s ? (s.nclc != null && s.nclc >= 7 ? "ok" : s.nclc != null && s.nclc >= 5 ? "amber" : "low") : undefined;
+                return (<li key={n}>
                 <a className="card cp-exam" data-state={running ? "running" : done ? "done" : "new"} data-band={band} aria-label={`${w.examTitle(section, n)}${fresh.exams.has(n) ? ` · ${w.added}` : ""} · ${running ? w.running : done ? w.done : w.newExam}${s ? ` · ${s.score} / 699` : ""}`} {...linkProps(`/${section}/exam/${n}`)}>
                   <span className="cp-exam-no" aria-hidden="true">{n}</span>
                   {fresh.exams.has(n) && <span className="cp-exam-added"><Chip tone="fresh">{w.added}</Chip></span>}
                   <Chip tone={running ? "amber" : done ? "ok" : "new"} dot={running}>{running ? w.running : done ? w.done : w.newExam}</Chip>
                   <span className="cp-exam-score" data-empty={s ? undefined : ""}>
                     <span className="cp-exam-n num">{s ? s.score : 0}</span><span className="cp-exam-of num">/ 699</span>
-                    {s && <Nclc n={s.nclc} lang={lang} />}
+                    {s && <Nclc n={s.nclc} lang={lang}/>}
                   </span>
                   <span className="cp-exam-count muted small">{w.attempts(list.length)}</span>
                 </a>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </>
-  );
+              </li>);
+            })}
+        </ul>)}
+    </>);
 }
-
-/** the NCLC chip: a number; under the table (`null`) « NCLC 3 », as the dashboard shows it */
-export function Nclc({ n, lang }: { n: number | null | undefined; lang: Lang }) {
-  const w = WORDS[lang];
-  return n == null ? <Chip tone="new">{w.nclcLow}</Chip> : <Chip tone="accent">{w.nclc(n)}</Chip>;
+export function Nclc({ n, lang }: {
+    n: number | null | undefined;
+    lang: Lang;
+}) {
+    const w = WORDS[lang];
+    return n == null ? <Chip tone="new">{w.nclcLow}</Chip> : <Chip tone="accent">{w.nclc(n)}</Chip>;
 }
-
 export type { Level };

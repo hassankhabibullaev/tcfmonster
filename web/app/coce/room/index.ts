@@ -1,6 +1,4 @@
-// The comprehension rooms (docs/COCE.md §4): what the integrator mounts and what Pages may reuse.
 import "./room.css";
-
 export { PracticeRoom, type PracticeRoomProps, type Help } from "./PracticeRoom.tsx";
 export { ExamRoom, type ExamRoomProps } from "./ExamRoom.tsx";
 export { Player, type PlayerProps, type PlayerHandle } from "./Player.tsx";

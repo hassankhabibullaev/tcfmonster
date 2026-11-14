@@ -1,8 +1,6 @@
-/* Messages (pages/Messages.tsx): one conversation drawn like a messaging app — a head, the conversation, the foot with
-   the box — filling the screen; and the dashboard's card while an answer waits. Tokens only. */
+
 .conv { display: flex; flex-direction: column; width: 100%; max-width: 860px; height: 100dvh; margin: 0 auto; background: var(--surface); border-inline: 1px solid var(--line); }
 
-/* the head: who you are talking to, and All | Reports */
 .conv-head { flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .conv-back { display: none; flex: none; width: 36px; height: 36px; border-radius: 50%; place-items: center; color: var(--ink); }
 .conv-avatar { flex: none; border-radius: 12px; }
@@ -11,10 +9,9 @@
 .conv-who p { margin: 0; font-size: 12px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .conv-head .seg { flex: none; }
 
-/* the conversation */
 .conv-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; padding: 16px 16px 12px;
   background-color: var(--surface-2); background-image: radial-gradient(color-mix(in srgb, var(--ink) 7%, transparent) 1px, transparent 1px); background-size: 18px 18px; }
-.conv-scroll > :first-child { margin-top: auto; } /* a short conversation sits at the bottom, by the box */
+.conv-scroll > :first-child { margin-top: auto; } 
 .conv-item, .conv-thread { display: flex; flex-direction: column; gap: 6px; }
 .conv-thread { padding-bottom: 14px; }
 .conv-scroll:has(.conv-thread) > :first-child { margin-top: 0; }
@@ -35,7 +32,6 @@
 .conv-note { margin: auto; text-align: center; color: var(--ink-muted); max-width: 420px; padding: 24px 8px; }
 .conv-note-sm { margin: 0; padding: 2px 8px; font-size: 13px; text-align: left; }
 
-/* a report: the person's own card in the conversation */
 .conv-report { width: min(540px, 88%); padding: 10px 12px 6px; border-radius: 18px 18px 6px 18px; background: var(--surface); border: var(--border-strong) dashed var(--ink-muted); display: flex; flex-direction: column; gap: 5px; }
 .conv-report[data-done] { border-style: solid; border-color: var(--line); }
 .conv-report-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -45,7 +41,6 @@
 .conv-report-where { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: var(--ink-muted); text-decoration: none; }
 .conv-report-where:hover { color: var(--ink); text-decoration: underline; }
 
-/* the foot: what is left of the day, the box, the round button */
 .conv-foot { flex: none; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--surface); }
 .conv-limit { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0 6px; font-size: 12px; font-weight: 700; color: var(--ink-muted); }
 .conv-limit[data-out] { color: var(--ink); background: var(--sun-soft); border-radius: var(--radius-md); padding: 8px 10px; font-size: 13px; }
@@ -73,7 +68,6 @@
   .conv-report { width: 92%; }
 }
 
-/* the dashboard's card while an answer waits */
 .msgs-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: var(--radius-lg); background: var(--sun-soft); color: var(--ink); border: var(--border-strong) solid var(--ink); text-decoration: none; }
 .msgs-card img { flex: none; border-radius: 10px; }
 .msgs-card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 14px; }

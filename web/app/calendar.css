@@ -1,4 +1,4 @@
-/* ---------- the one date picker (Calendar.tsx): the sheet's look, the app's buttons ---------- */
+
 .cal-anchor { position: relative; display: inline-flex; align-items: baseline; vertical-align: middle; }
 .cal-pop { position: absolute; top: calc(100% + 10px); left: 0; z-index: 40; animation: rise var(--duration-move) var(--ease-out); }
 .cal-pop[data-align="end"] { left: auto; right: 0; }
@@ -21,7 +21,7 @@
 .cal-foot { display: flex; justify-content: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .cal-foot .btn[aria-pressed="true"] { background: var(--sun-soft); }
 @media (max-width: 760px) {
-  /* on a phone the calendar sits at the bottom of the screen, full width, whatever opened it */
+  
   .cal-anchor { position: static; }
   .cal-pop, .cal-pop[data-align="end"] { position: fixed; top: auto; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); }
   .cal { width: 100%; }

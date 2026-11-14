@@ -1,4 +1,3 @@
-// The expression simulator's browser side: the two rooms, the results page and their pieces.
 export { OralRunner, type OralRunnerProps } from "./oral-runner";
 export { EcritRunner, type EcritRunnerProps } from "./ecrit-runner";
 export { SessionResults, type SessionResultsProps, type TaskView } from "./session-results";

@@ -1,4 +1,4 @@
-/* tcf.monster — generated from the design system's tokens.json. Do not edit by hand. */
+
 :root {
   --bg: #fffbf2;
   --surface: #ffffff;
@@ -36,8 +36,7 @@
   --radius-md: 14px;
   --radius-lg: 20px;
   --radius-pill: 999px;
-  /* the scrollbar (public/scrollbars.js draws it): one colour, one shape, and a gutter it lives in. A scrolling area
-     keeps --sb-gutter of padding on its scrolling edge; the thumb is drawn inside that gutter and never over content */
+  
   --sb-thumb: color-mix(in srgb, var(--accent) 60%, transparent);
   --sb-thumb-active: var(--accent);
   --sb-size: 6px;

@@ -1,12 +1,8 @@
-/* tcf.monster — the mock exam (docs/MOCK-EXAM.md): the shared chrome of the four stages, the break, the transition,
-   the marking, the pages, the certificate and its print block. Every value comes from tokens.css; one phone block at
-   the end. */
 
-/* ---------- the sitting ---------- */
+
 .mk-sitting { position: relative; display: contents; }
 .mk-trouble { position: fixed; left: 50%; bottom: 100px; z-index: 50; width: min(520px, calc(100vw - 32px)); transform: translateX(-50%); }
 
-/* ---------- the pages ---------- */
 .mk-h1 { font-family: var(--font-display); font-weight: 700; font-size: 30px; letter-spacing: -0.02em; }
 .mk-h1-row { display: flex; align-items: center; gap: 10px; }
 .mk-h1-row > .back { flex: none; }
@@ -20,7 +16,6 @@
 .mk-row .hist-main { gap: 8px; }
 .mk-row-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 
-/* the initiation page */
 .mk-init { width: min(680px, 100%); margin: 0 auto; padding: 48px 20px 120px; display: flex; flex-direction: column; gap: var(--space-5); animation: hall-in var(--duration-move) var(--ease-out); }
 .mk-init-head { display: flex; flex-direction: column; gap: 6px; }
 .mk-init-title { font-family: var(--font-display); font-weight: 700; font-size: 36px; letter-spacing: -0.02em; }
@@ -37,11 +32,10 @@
 .mk-init-line .icon { vertical-align: -2px; color: var(--ok); }
 .mk-foot { display: flex; align-items: center; gap: 10px; }
 .mk-foot-mid { flex: 1; }
-/* the two buttons float over the page's end; the page runs under them from the very top to the very bottom */
+
 .mk-init-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; height: 84px; padding: 0 20px 20px; pointer-events: none; }
 .mk-init-foot .btn { pointer-events: auto; }
 
-/* the results: the page fits the screen on a laptop — the hero, then the four tests as four cards in two rows */
 .mk-result { min-height: calc(100dvh - 92px); display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: var(--space-4); }
 .mk-overall { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); padding: var(--space-5) var(--space-6); background: var(--sun-soft); border-color: var(--sun); }
 .mk-overall[data-none] { background: var(--surface-2); border-color: var(--line); }
@@ -65,14 +59,13 @@ a.mk-test-card:hover .mk-test-more { color: var(--ink); text-decoration-color: v
 .mk-cells li:first-child .cp-cell-n { font-size: 40px; }
 .mk-test-sub { margin-top: auto; font-weight: 600; }
 .mk-test:not([data-taken]) .mk-test-card { opacity: .6; }
-/* the detail of one test */
+
 .mk-detail-head { display: flex; flex-direction: column; gap: 12px; padding: var(--space-5); }
 .mk-detail-title { display: flex; align-items: center; gap: 12px; }
 .mk-detail-title h1 { font-family: var(--font-display); font-weight: 700; font-size: 26px; letter-spacing: -0.02em; }
 .mk-detail-head .mk-cells { max-width: 560px; }
 .mk-detail-expr .results-head .btn, .mk-detail-expr .results-exit { display: none; }
 
-/* the dashboard card */
 .mk-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: var(--space-5); border-radius: var(--radius-lg); }
 .mk-card-text { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .mk-card h2 { display: inline-flex; align-items: center; gap: 10px; font-size: 16px; }
@@ -83,15 +76,12 @@ a.mk-test-card:hover .mk-test-more { color: var(--ink); text-decoration-color: v
 .mk-card-line b { color: var(--ink); font-weight: 800; }
 .mk-card-last { display: flex; flex-direction: column; gap: 6px; }
 
-
-
-/* ---------- phone ---------- */
 @media (max-width: 760px) {
   .mk-page { gap: 12px; }
   .mk-h1 { font-size: 22px; }
   .mk-h1-row .back-word { display: none; }
   .mk-back-where { font-size: 12px; font-weight: 700; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  /* the dark card: the brand line, the four tests' minutes on one line, one sentence, « Commencer › » */
+  
   .mk-hero.pad { gap: 12px; padding: 18px; background: var(--hall); color: var(--hall-ink); border-color: var(--hall); border-radius: 18px; box-shadow: none; }
   .mk-hero .mai-powered { color: color-mix(in srgb, var(--hall-ink) 70%, transparent); }
   .mk-hero-chips { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; }
@@ -104,7 +94,7 @@ a.mk-test-card:hover .mk-test-more { color: var(--ink); text-decoration-color: v
   .mk-hero-acts .btn { flex: 1; height: 48px; gap: 6px; }
   .mk-hero-acts .btn.primary { border-color: var(--ink); }
   .mk-hero-acts .btn.quiet { color: var(--hall-ink); border-color: color-mix(in srgb, var(--hall-ink) 35%, transparent); }
-  /* the list: date and four small chips, the status chip, a chevron */
+  
   .mk-list .card-head { margin-bottom: 8px; }
   .mk-list .card-head h2 { font-size: 16px; }
   .mk-row .hist-main { gap: 4px; }
@@ -112,7 +102,7 @@ a.mk-test-card:hover .mk-test-more { color: var(--ink); text-decoration-color: v
   .mk-row-chips { flex-wrap: nowrap; gap: 5px; }
   .mk-row-chips .chip { height: 20px; padding: 0 6px; font-family: var(--font-mono); font-size: 11px; border-radius: 6px; background: var(--new); }
   .mk-row > .chip { flex: none; }
-  /* the initiation: a vertical timeline, the breaks between the tests, the microphone as one pill, a fixed footer */
+  
   .mk-init { padding: 20px 16px 110px; gap: 14px; }
   .mk-init-head { gap: 4px; }
   .mk-init-title { font-size: 26px; }
@@ -132,7 +122,7 @@ a.mk-test-card:hover .mk-test-more { color: var(--ink); text-decoration-color: v
   .mk-init-foot { display: flex; gap: 10px; }
   .mk-init-back { flex: none; width: 52px; height: 52px; padding: 0; border-radius: 50%; border-color: var(--line); background: var(--surface); }
   .mk-init-start { flex: 1; height: 52px; font-size: 16px; gap: 6px; }
-  /* the result: a dark hero with the four tests as tiles and the certificate, then four rows */
+  
   .mk-result { min-height: 0; display: flex; flex-direction: column; }
   .mk-overall, .mk-overall[data-none] { flex-direction: column; align-items: stretch; gap: 10px; padding: 18px; background: var(--hall); color: var(--hall-ink); border-color: var(--hall); border-radius: 18px; box-shadow: none; }
   .mk-overall-label { font-size: 10px; letter-spacing: .1em; color: color-mix(in srgb, var(--hall-ink) 70%, transparent); }
@@ -164,7 +154,7 @@ a.mk-test-card:hover .mk-test-more { color: var(--ink); text-decoration-color: v
   .mk-test-line span { font-size: 12px; font-weight: 700; color: var(--ink-muted); }
   .mk-test-chev { grid-column: 3; color: var(--ink-muted); }
   .mk-test:not([data-taken]) .mk-test-card { opacity: .6; }
-  /* the dashboard's fifth row: a dark tile, the name, « 2 passés · le dernier NCLC 3 », a chevron; the whole row opens */
+  
   .mk-card { position: relative; flex-direction: row; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 16px; }
   .mk-card-text { flex: 1; min-width: 0; display: grid; grid-template-columns: 38px minmax(0, 1fr); column-gap: 12px; row-gap: 2px; align-items: center; }
   .mk-card h2 { font-size: 14px; gap: 12px; display: contents; }

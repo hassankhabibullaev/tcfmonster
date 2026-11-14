@@ -1,6 +1,4 @@
-/* The release note (pages/ReleaseNote.tsx): a window in the middle of the screen over the blurred page, confetti from
-   two poppers behind it, two cards (what came, big numbers), one secondary line, where to report, « Tout voir » and the
-   primary button. Tokens only. */
+
 dialog.release { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: var(--border-strong) solid var(--ink); border-radius: var(--radius-lg); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-float); overflow: auto; }
 dialog.release[open] { animation: release-in var(--duration-move) var(--ease-out); }
 dialog.release::backdrop { background: color-mix(in srgb, var(--bg) 45%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
@@ -10,7 +8,6 @@ dialog.release::backdrop { background: color-mix(in srgb, var(--bg) 45%, transpa
 .release h2 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 30px; line-height: 1.1; letter-spacing: -0.01em; }
 .release p { margin: 0; }
 
-/* the two cards: the section's icon, the big number, what it is, which numbers; each opens its exams */
 .release-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .release-card { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 16px; border: var(--border-strong) solid var(--ink); border-radius: var(--radius-md); color: var(--ink); text-decoration: none; box-shadow: 0 4px 0 var(--ink); transition: transform var(--duration-quick) var(--ease-out), box-shadow var(--duration-quick) var(--ease-out); }
 .release-card[data-s="co"] { background: var(--accent-soft); }
@@ -22,7 +19,6 @@ dialog.release::backdrop { background: color-mix(in srgb, var(--bg) 45%, transpa
 .release-card-what { font-weight: 800; font-size: 15px; line-height: 1.3; }
 .release-card-which { font-size: 13px; font-weight: 700; color: var(--ink-muted); }
 
-/* the secondary line */
 .release-more { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--radius-md); background: var(--surface-2); font-weight: 700; font-size: 15px; line-height: 1.35; }
 .release-more > svg { flex: none; color: var(--accent); }
 .release-report { font-size: 13px; line-height: 1.5; color: var(--ink-muted); }
@@ -42,12 +38,11 @@ dialog.release::backdrop { background: color-mix(in srgb, var(--bg) 45%, transpa
   .release-actions > * { flex: 1; }
 }
 
-/* a release told in points (an icon, a bold lead, one or two lines) */
 .release-points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .release-points li { display: flex; gap: 12px; align-items: flex-start; padding: 10px 14px; border-radius: var(--radius-md); background: var(--surface-2); font-size: 15px; line-height: 1.4; }
 .release-point-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--surface); border: var(--border-hair) solid var(--ink); color: var(--accent); }
 .release-points a { font-weight: 800; color: var(--accent); white-space: nowrap; }
-/* the older releases under the newest, one row each */
+
 .release-earlier { border-top: var(--border-hair) solid var(--ink-muted); padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .release-earlier-title { font-weight: 800; font-size: 13px; color: var(--ink-muted); }
 .release-earlier ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
