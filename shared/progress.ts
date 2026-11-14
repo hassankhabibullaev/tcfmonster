@@ -71,6 +71,38 @@ export type Event = {
 
 export const emptyState = (): State => ({ v: 1, q: {}, pos: null });
 
+/** questions merged into another (BANK.md, 2026-11-12: the same recording twice in practice): what was done on the old
+ *  id counts for the kept one */
+export const MERGED: Record<string, string> = {
+  "07ddf1fa-7637-5c07-aae8-cf913d457ef3": "b20f517a-9a64-5a99-95df-7d219e3db596",
+  "eb2b3a01-f95a-5464-a997-459ba1129e75": "5f496ab8-dd59-4fc5-8428-bdb522a0e8e2",
+  "c24767f2-d89e-5a9e-aac4-19be5bceb5f8": "18a0c124-76c4-4c9a-bec4-e67d17be8066",
+  "3305894f-8572-55e8-ac2c-312027279d8b": "0e7130d6-d517-4a59-bdab-ed40b012b49d",
+  "af59f853-d354-5197-af75-7f1100186f3c": "6b5f9f2e-a5b1-4022-a1e3-7e4db0a055f3",
+};
+
+/** a state with each merged question's entry moved onto the kept one (kept when it has its own; the newer reset
+ *  likewise); the very same object when there is nothing to move */
+export function settle(state: State): State {
+  let q: Record<string, Entry> | null = null, x: Record<string, number> | null = null;
+  for (const [old, kept] of Object.entries(MERGED)) {
+    if (state.q[old]) {
+      q ??= { ...state.q };
+      if (!q[kept]) q[kept] = q[old];
+      delete q[old];
+    }
+    if (state.x?.[old] !== undefined) {
+      x ??= { ...state.x };
+      if (!q?.[kept] && !state.q[kept] && (x[kept] ?? 0) < x[old]) x[kept] = x[old];
+      delete x[old];
+    }
+  }
+  if (!q && !x) return state;
+  const next: State = { ...state, q: q ?? state.q };
+  if (x) { if (Object.keys(x).length) next.x = x; else delete next.x; }
+  return next;
+}
+
 /**
  * The same state with one entry changed, or removed when `entry` is null (then `at` is the second of the reset, kept
  * in `x` so that an older answer arriving later changes nothing). A new entry forgets the reset.
@@ -94,7 +126,7 @@ export function apply(state: State, e: Event): State {
     if (typeof n !== "number" || !Number.isFinite(n) || n === state.pos) return state;
     return { ...state, pos: n };
   }
-  const qid = e.qid;
+  const qid = typeof e.qid === "string" ? MERGED[e.qid] ?? e.qid : e.qid;
   if (typeof qid !== "string" || !qid) return state;
   const cur = state.q[qid];
   if (cur && !(e.t > cur.t)) return state;
@@ -123,6 +155,7 @@ export function apply(state: State, e: Event): State {
 export function counts(state: State, n: number): { green: number; red: number; amber: number; grey: number } {
   let green = 0, red = 0, amber = 0;
   for (const k in state.q) {
+    if (MERGED[k]) continue; // counted on the kept question once settled
     const s = state.q[k].s;
     if (s === "green") green++; else if (s === "red") red++; else if (s === "amber") amber++;
   }

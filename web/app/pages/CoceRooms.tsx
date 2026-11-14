@@ -1,6 +1,7 @@
 // The comprehension rooms, mounted in the frame: a practice level (rail narrowed) and the exam room (rail hidden). A new
-// exam passes through the same dark hallway as EE/EO (the title, the logo, 3 · 2 · 1): the attempt is created only when
-// the count reaches zero, so the seconds in the hallway are not taken from the exam; a running attempt found on arrival
+// exam in the real exam mode passes through the same dark hallway as EE/EO (the title, the logo, 3 · 2 · 1): the attempt
+// is created only when the count reaches zero, so the seconds in the hallway are not taken from the exam; free mode
+// opens the room at once; a running attempt found on arrival
 // is resumed at once, no hallway. The old review room's address only points to the result page now.
 import { useCallback, useEffect, useState } from "react";
 import { Frame } from "../Frame.tsx";
@@ -69,7 +70,8 @@ export function ExamSalle({ section, exam }: { section: Section; exam: number })
         const running = (await currentRunning()).attempt as unknown as Attempt | null;
         if (gone) return;
         // nothing runs: the hallway only after « Commencer » (Back onto a finished exam's room goes to its card)
-        if (!running) { if (takeStart(section, exam)) setSt({ step: "hall" }); else replace(`/${section}/exam/${exam}`); return; }
+        // free mode is not the real exam: no hallway and no 3 · 2 · 1, the room opens at once
+        if (!running) { if (!takeStart(section, exam)) replace(`/${section}/exam/${exam}`); else if (mode === "training") void start(); else setSt({ step: "hall" }); return; }
         if (running.section !== section || running.exam !== exam) { replace(sallePath(running)); return; }
         const questions = await loadExam(section, exam);
         if (!gone) setSt({ step: "room", attempt: running, questions });

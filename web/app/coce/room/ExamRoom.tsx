@@ -1,8 +1,10 @@
 // The exam room (UX §2.6): the server's deadline on the clock, a bar of what is answered, no help. `attempt.mode` decides the rest.
 // Real exam mode (`exam`): CO plays each recording once, Suivant stays shut until it has ended, then the question keeps
 // 2100 s / 39 minus the recording's length (6 s at least) — the grace line drains over that span — and the next
-// question comes by itself, no going back; CE moves freely between the questions, as at the real test. Free mode
-// (`training`): everything moves freely, CO may replay and scrub. The clock runs the same in both.
+// question comes by itself, no going back; CE moves freely between the questions, as at the real test; every result
+// waits for the end. Free mode (`training`): everything moves freely, CO may replay and scrub, and an answer is checked
+// the moment it is chosen (right or wrong shown at once, with the reasons; it cannot change afterwards). The clock runs
+// the same in both.
 // Answers are kept in this browser at once (localStorage, under the attempt's id) and reach the server only when they
 // must (the free plan counts every request): with the finish itself, and when the tab hides or the room is left (a
 // keepalive PATCH, so another device can take over). Choosing an option or playing a recording sends nothing. The
@@ -19,6 +21,7 @@ import { Shell, type Progress } from "./Shell.tsx";
 import { Player, type PlayerHandle } from "./Player.tsx";
 import { Passage } from "./Passage.tsx";
 import { Options } from "./Options.tsx";
+import { Feedback } from "./Feedback.tsx";
 import { Picker, type PickTone } from "./Picker.tsx";
 import { Rail, type RailHandle } from "./Rail.tsx";
 import { call, serverNow, useKeys, useOnline, usePhone } from "./hooks.ts";
@@ -185,10 +188,12 @@ export function ExamRoom({ section, exam, attempt, questions, lang, onFinished, 
 
   const setAnswer = useCallback((key: Key | "-") => {
     if (!q || phase !== "run" || pending) return;
+    // free mode shows the answer at once: a question answered stays as it was answered
+    if (training && /^[ABCD]$/.test(answersRef.current[placementOf(q)] ?? "")) return;
     setAnswers((a) => ({ ...a, [placementOf(q)]: key }));
     if (mock && mockStage) mock.store.setAnswer(mockStage, placementOf(q), key);
     schedulePatch();
-  }, [q, phase, schedulePatch, mock, mockStage, pending]);
+  }, [q, phase, schedulePatch, mock, mockStage, pending, training]);
 
   // ---- moving ----
   const go = useCallback((i: number) => { if (i >= 0 && i < total) { setGrace(null); setIdx(i); } }, [total]);
@@ -286,7 +291,13 @@ export function ExamRoom({ section, exam, attempt, questions, lang, onFinished, 
   });
 
   const unanswered = useMemo(() => questions.map((x, i) => (answers[placementOf(x)] ? null : i + 1)).filter((v): v is number => v !== null), [questions, answers]);
-  const tone = useCallback((k: number): PickTone => (answers[placementOf(questions[k - 1])] ? "done" : "todo"), [answers, questions]);
+  // free mode: each answered question in its colour (right green, wrong red); the real exam only says answered or not
+  const tone = useCallback((k: number): PickTone => {
+    const x = questions[k - 1], a = answers[placementOf(x)];
+    if (!a) return "todo";
+    if (!training || a === "-") return "done";
+    return a === x.answer ? "green" : "red";
+  }, [answers, questions, training]);
   const title = useMemo(() => <span className="cr-title-text">{w[section]}{training ? ` · ${w.training}` : ""}</span>, [section, training, w]);
   const done = total - unanswered.length;
   if (!q) return null;
@@ -308,7 +319,8 @@ export function ExamRoom({ section, exam, attempt, questions, lang, onFinished, 
   const right = (
     <>
       <div className="cr-stem"><p lang="fr">{q.stem}</p></div>
-      <Options options={q.options} chosen={chosen} answer={q.answer} reveal={false} disabled={phase !== "run" || (strict && given === "-")} english={false} lang={lang} onPick={setAnswer} />
+      <Options options={q.options} chosen={chosen} answer={q.answer} reveal={training && !!chosen} disabled={phase !== "run" || (strict && given === "-") || (training && !!chosen)} english={false} lang={lang} onPick={setAnswer} />
+      {training && <Feedback q={q} chosen={chosen} shown={!!chosen} english={false} lang={lang} />}
     </>
   );
   const progress: Progress = { n, total, parts: { done }, onOpen: () => (phone ? setPicker(true) : rail.current?.focus()), label: `${w.questionOf(n, total)} · ${w.done} ${done} · ${w.todo} ${total - done}`, popup: phone };
@@ -343,7 +355,7 @@ export function ExamRoom({ section, exam, attempt, questions, lang, onFinished, 
         <Sheet open={sheet === "finish"} title={w.finishTitle} onClose={() => setSheet(null)} className="cr-finish"
           actions={<><Button onClick={() => setSheet(null)}>{w.continueExam}</Button>{whole ? <Button kind="primary" onClick={() => void finish("done")}>{w.finish}</Button> : <Button kind="danger" onClick={() => void finish("abandon")}>{w.abandonTest}</Button>}</>}>
           <ul className="cr-cells" aria-label={progress.label}>
-            {questions.map((x, i) => <li key={x.id} className="cr-disc" data-tone={answers[placementOf(x)] ? "done" : "todo"} aria-current={i === idx ? "true" : undefined}>{i + 1}</li>)}
+            {questions.map((x, i) => <li key={x.id} className="cr-disc" data-tone={tone(i + 1)} aria-current={i === idx ? "true" : undefined}>{i + 1}</li>)}
           </ul>
           <p>{whole ? w.finishAll : <>{w.unanswered(unanswered.length)} {w.unansweredWrong}</>}</p>
         </Sheet>

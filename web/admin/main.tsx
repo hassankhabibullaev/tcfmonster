@@ -5,13 +5,17 @@ import "../ui/base.css";
 import "./admin.css";
 import { Icon, Wordmark, Toast, type IconName } from "../ui/ui.tsx";
 import { useLocation, linkProps } from "./lib.ts";
+import { Today } from "./pages/Today.tsx";
 import { People } from "./pages/People.tsx";
 import { Person } from "./pages/Person.tsx";
 import { Disputes, Dispute } from "./pages/Disputes.tsx";
+import { Messages } from "./pages/Messages.tsx";
 
 const NAV: [string, string, IconName][] = [
-  ["/", "People", "users"],
-  ["/disputes", "Disputes", "flag"],
+  ["/", "Today", "home"],
+  ["/people", "People", "users"],
+  ["/reports", "Reports", "flag"],
+  ["/messages", "Messages", "chat"],
 ];
 
 // light or dark: light unless this device chose dark (the same key as the app, on its own origin)
@@ -57,27 +61,30 @@ function App() {
 }
 
 function Admin() {
-  const { path } = useLocation();
+  // « Reports » was « Disputes »: its old addresses still open
+  const path = useLocation().path.replace(/^\/disputes(?=\/|$)/, "/reports");
   const [toast, setToast] = useState<ToastState>(null);
   const say = useCallback((text: string, tone?: "ok" | "bad") => setToast({ text, tone }), []);
   const clear = useCallback(() => setToast(null), []);
-  const section = path.startsWith("/disputes") ? "/disputes" : "/";
+  const section = path.startsWith("/messages") ? "/messages" : path.startsWith("/reports") ? "/reports" : path.startsWith("/people") ? "/people" : "/";
   const person = path.match(/^\/people\/([\w-]+)$/)?.[1];
-  const dispute = path.match(/^\/disputes\/(\d+)$/)?.[1];
+  const dispute = path.match(/^\/reports\/(\d+)$/)?.[1];
 
   let page;
-  if (path === "/" || path === "/people") page = <People />;
+  if (path === "/") page = <Today />;
+  else if (path === "/people") page = <People />;
   else if (person) page = <Person id={person} />;
-  else if (path === "/disputes") page = <Disputes />;
+  else if (path === "/messages" || /^\/messages\/[\w-]+$/.test(path)) page = <Messages id={path.split("/")[2] ?? null} />;
+  else if (path === "/reports") page = <Disputes />;
   else if (dispute) page = <Dispute id={Number(dispute)} />;
-  else page = <div className="page"><h1 className="title">Not found</h1><a className="link" {...linkProps("/")}>People</a></div>;
+  else page = <div className="page"><h1 className="title">Not found</h1><a className="link" {...linkProps("/")}>Today</a></div>;
 
   return (
     <ToastContext.Provider value={say}>
       <a className="skip" href="#main">Skip to content</a>
       <header className="bar">
         <div className="bar-in">
-          <a className="brand" {...linkProps("/")} aria-label="tcf.monster admin, people">
+          <a className="brand" {...linkProps("/")} aria-label="tcf.monster admin, today">
             <img className="logo" src="/app-icon.svg" alt="" width="32" height="32" /><Wordmark /><span className="brand-tag">admin</span>
           </a>
           <nav className="nav" aria-label="Admin">

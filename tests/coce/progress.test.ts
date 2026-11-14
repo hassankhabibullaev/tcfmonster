@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { makeEnv } from "../../scripts/local-env.ts";
 import type { Env } from "../../worker/util.ts";
 import type { Me } from "../../worker/auth.ts";
-import { apply, counts, emptyState, levelOfPosition, POINTS, LEVELS, type Event, type State } from "../../shared/progress.ts";
+import { apply, counts, emptyState, settle, levelOfPosition, POINTS, LEVELS, type Event, type State } from "../../shared/progress.ts";
 import { handleProgress, handleSync, cleanEvent, shiftBundle } from "../../worker/coce/progress.ts";
 
 type Row = Record<string, any>;
@@ -191,5 +191,24 @@ describe("the sync route", () => {
     await sync([ev({ t: ahead, qid: "late", right: true })]);
     const t = JSON.parse((raw.prepare("SELECT data FROM progress WHERE level = 'B1' AND section = 'co'").get() as Row).data).q.late.t;
     expect(t).toBeLessThanOrEqual(Date.now() / 1000 + 61);
+  });
+});
+
+describe("questions merged into another (MERGED, 2026-11-12)", () => {
+  const OLD = "07ddf1fa-7637-5c07-aae8-cf913d457ef3", KEPT = "b20f517a-9a64-5a99-95df-7d219e3db596";
+  const ev = (t: number, qid: string, right: boolean): Event => ({ id: `e${t}`, section: "co", level: "C1", t, type: "answer", qid, key: "A", right });
+  it("the old id's entry moves onto the kept question, never over its own", () => {
+    const only: State = { v: 1, q: { [OLD]: { s: "green", t: 5, a: "D" } }, pos: 3 };
+    expect(settle(only)).toEqual({ v: 1, q: { [KEPT]: { s: "green", t: 5, a: "D" } }, pos: 3 });
+    const both: State = { v: 1, q: { [OLD]: { s: "green", t: 9, a: "D" }, [KEPT]: { s: "red", t: 2, a: "B" } }, pos: null };
+    expect(settle(both).q).toEqual({ [KEPT]: { s: "red", t: 2, a: "B" } });
+    const none: State = { v: 1, q: { x: { s: "red", t: 1, a: "A" } }, pos: null };
+    expect(settle(none)).toBe(none);
+  });
+  it("an answer sent on the old id lands on the kept question, and counts count it once", () => {
+    const s = apply(emptyState(), ev(10, OLD, true));
+    expect(s.q).toEqual({ [KEPT]: { s: "green", t: 10, a: "A" } });
+    const raw: State = { v: 1, q: { [OLD]: { s: "green", t: 5, a: "D" }, [KEPT]: { s: "red", t: 2, a: "B" } }, pos: null };
+    expect(counts(raw, 10)).toEqual({ green: 0, red: 1, amber: 0, grey: 9 });
   });
 });

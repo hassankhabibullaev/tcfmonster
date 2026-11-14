@@ -475,3 +475,12 @@ select.pinput { cursor: pointer; }
 .terms-again h1 { font-family: var(--font-display); font-size: 28px; line-height: 1.2; margin: 0; }
 /* the code step: the spam line and the last resend's words */
 .auth-note { margin: 0; text-align: center; line-height: 1.45; }
+
+/* CO / CE with something added less than 30 days ago (shared/exams.ts): a red dot on the mark, rail and phone bar */
+.rail-item[data-fresh], .tabbar a[data-fresh] { position: relative; }
+.rail-item[data-fresh]::after, .tabbar a[data-fresh]::after { content: ""; position: absolute; top: 6px; right: calc(50% - 18px); width: 10px; height: 10px; border-radius: 50%; background: var(--bad); box-shadow: 0 0 0 2px var(--surface); pointer-events: none; }
+.rail-item[data-fresh][aria-current="page"]::after, .tabbar a[data-fresh][aria-current="page"]::after { box-shadow: 0 0 0 2px #fff; }
+/* Messages: a dot on the phone's avatar while an answer waits, and the menu's row says so */
+.avmenu-btn[data-fresh] { position: relative; }
+.avmenu-btn[data-fresh]::after { content: ""; position: absolute; top: 0; right: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--bad); box-shadow: 0 0 0 2px var(--surface); pointer-events: none; }
+.avmenu-new { color: var(--bad); }

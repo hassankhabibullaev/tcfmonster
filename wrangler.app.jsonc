@@ -1,7 +1,7 @@
 // The one Worker: tcf.monster (the public site and the application) and admin.tcf.monster; app.tcf.monster and
 // www.tcf.monster answer a redirect to tcf.monster. One D1 database, one R2 bucket.
 {
-  "name": "tcf-monster-app",
+  "name": "tcfmonster",
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["global_fetch_strictly_public", "nodejs_compat"],
@@ -31,7 +31,7 @@
     { "name": "USER_BURST", "namespace_id": "8006", "simple": { "limit": 240, "period": 60 } }
   ],
   // the Worker itself: the nightly run calls each job through it, each with its own CPU time (worker/index.ts)
-  "services": [{ "binding": "SELF", "service": "tcf-monster-app" }],
+  "services": [{ "binding": "SELF", "service": "tcfmonster" }],
   // one schedule only: the free plan allows 5 for the whole account, shared with the other apps
   "triggers": { "crons": ["0 22 * * *"] },
   "observability": { "enabled": true },
@@ -46,7 +46,7 @@
     "MAIL_FROM": "tcf.monster <bonjour@tcf.monster>",
     "TURNSTILE_SITEKEY": "0x4AAAAAAFgYw3EsVNkcVzcd",
     // Cloudflare Access on admin.tcf.monster (Zero Trust › Access › Applications › admin): the admin checks its token
-    "ACCESS_TEAM": "yaxshiyashaylik.cloudflareaccess.com",
+    "ACCESS_TEAM": "tcfmonster.cloudflareaccess.com",
     "ACCESS_AUD": "259a9cee7e9bbeaac1c3551eef20bc559ed33ad92f1086cc8a51f5f06a7c9683"
   }
 }

@@ -8,7 +8,7 @@ import { type Env, day } from "./util.ts";
 import type { JobResult } from "./jobs.ts";
 
 // topics are not copied: the weekly sync fetches them again from their source
-export const BACKED_UP = ["users", "progress", "practice_days", "attempts", "expr_sessions", "expr_tasks", "user_kv", "mocks", "disputes", "hidden"];
+export const BACKED_UP = ["users", "progress", "practice_days", "attempts", "expr_sessions", "expr_tasks", "user_kv", "mocks", "disputes", "messages", "hidden"];
 /** rows a file: progress rows are each person's whole level state, so fewer of them (CPU to turn them into text) */
 const PAGE: Record<string, number> = { progress: 150, expr_tasks: 300 };
 

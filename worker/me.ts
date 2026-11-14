@@ -5,6 +5,7 @@ import { type Me, sendCode, checkCode, sessionCookie, accountRoom, networkOf, TE
 import { maybeWelcome } from "./news.ts";
 import { runningNow } from "./coce/attempts.ts";
 import { sendDesigned } from "./mail.ts";
+import { unreadFor } from "./messages.ts";
 
 type Body = Record<string, unknown>;
 
@@ -33,8 +34,10 @@ function mergeSettings(old: Record<string, unknown>, patch: Record<string, unkno
 export async function handleMe(req: Request, env: Env, me: Me, path: string): Promise<Response> {
   if (path === "/me" && req.method === "GET") {
     const p = await profile(env, me);
-    // what runs comes along: the bands on the first screen need no request of their own
-    return p ? json({ ...p, running: await runningNow(env, me.id) }) : fail(401, "signed out");
+    // what runs comes along, and the owner's unread answers: the bands and the dots need no request of their own
+    if (!p) return fail(401, "signed out");
+    const [running, unread] = await Promise.all([runningNow(env, me.id), unreadFor(env, me.id)]);
+    return json({ ...p, running, unread });
   }
   if (req.method !== "POST") return fail(405, "GET or POST");
   const b = (await readJson<Body>(req)) ?? {};
@@ -100,7 +103,7 @@ export async function handleMe(req: Request, env: Env, me: Me, path: string): Pr
     const who = await env.DB.prepare("SELECT lang FROM users WHERE id = ?").bind(me.id).first<{ lang: string }>();
     const d = env.DB;
     await d.batch([d.prepare("DELETE FROM expr_tasks WHERE session_id IN (SELECT id FROM expr_sessions WHERE user_id = ?)").bind(me.id)]
-      .concat(["sessions", "progress", "practice_days", "attempts", "expr_sessions", "user_kv", "mocks", "disputes", "starts", "bank_reads", "usage", "guard_events"].map((t) => d.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(me.id)))
+      .concat(["sessions", "progress", "practice_days", "attempts", "expr_sessions", "user_kv", "mocks", "disputes", "messages", "starts", "bank_reads", "usage", "guard_events"].map((t) => d.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(me.id)))
       .concat(d.prepare("DELETE FROM codes WHERE email = ?").bind(me.email), d.prepare("DELETE FROM users WHERE id = ?").bind(me.id)));
     // the last mail, once everything is gone (a failed send changes nothing: the account is deleted either way)
     await sendDesigned(env, me.email, "deleted", { lang: who?.lang ?? "en" }).catch((e) => console.error(e));

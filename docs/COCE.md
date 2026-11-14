@@ -47,11 +47,12 @@ into `public/data/` (git-ignored). Never committed. The bank's guard (`worker/co
   ```json
   { "builtAt": "…", "points": { "A1": 3, "A2": 9, "B1": 15, "B2": 21, "C1": 26, "C2": 33 },
     "examCount": { "A1": 4, "A2": 6, "B1": 9, "B2": 10, "C1": 6, "C2": 4 },
-    "levels": { "co": { "A1": 110, "A2": 140, … }, "ce": { … } }, "exams": 40 }
+    "levels": { "co": { "A1": 110, "A2": 140, … }, "ce": { … } }, "exams": { "co": 42, "ce": 44 },
+      "added": [{ "day": "2026-11-11", "exams": { "co": [41, 42], "ce": [41, 42, 43, 44] }, "levels": { "co": { "A1": 2, … }, … } }] }
   ```
 - `public/data/<co|ce>-<A1…C2>.json` — the level for practice: `Question[]` in a fixed order (the order of
   `questions.json`); numbering 1…N is the index + 1. Practice-only questions included.
-- `public/data/exam-<co|ce>-<01…40>.json` — `Question[]` of 39, position order, **the placement's options and
+- `public/data/exam-<co|ce>-<NN>.json` (CO 01…42, CE 01…44: `shared/exams.ts`) — `Question[]` of 39, position order, **the placement's options and
   answer applied** when the placement has its own (`question_key` dropped), plus `placement: "CO-12-05"`,
   `position: 5`, `level` by position (1–4 A1, 5–10 A2, 11–19 B1, 20–29 B2, 30–35 C1, 36–39 C2).
 - `Question` (browser shape, camelCase, nulls never missing keys):
@@ -73,6 +74,7 @@ into `public/data/` (git-ignored). Never committed. The bank's guard (`worker/co
     // CE
     passage: string | null; passageEn: string | null; passageImage: string | null;  // "/media/<key>"
     practiceOnly: boolean;
+    added: string | null;                               // the day it joined the bank; « Nouveau » for 30 days (shared/exams.ts)
   };
   ```
 - Media keys: `media/<section>/<basename>` (`media/co/69205b60b0f61d26db49.mp3`, `media/ce/2c63def4ef06bb3f0092.webp`);
@@ -134,8 +136,31 @@ pure rules run in the browser and in the Worker: `shared/progress.ts` (plain TS,
   sign-up, last visit and number of reports; `POST /api/admin/disputes/:id/resolve { note? } | reopen`). The list is
   tickets (#, section · level · n°, the message, who, when, open / done); a report's page shows the message, the
   question (its text read from the same `/data/<section>-<level>.json`, right option marked; « In the app » opens the
-  room at that question on tcf.monster), who sent it, and Mark done (with a note) / Reopen. The People page counts the
+  room at that question on tcf.monster), who sent it, « Open the chat », and Mark done (with an answer) / Reopen,
+  each told in the person's Messages (§2c). The People page counts the
   open ones; a person's page lists theirs.
+
+## 2c. Messages (Server ↔ App ↔ Admin)
+
+- Table `messages` (migration 0018): `id, user_id, from_owner` (0 the person, 1 the owner), `body` (≤ 2 000
+  characters; empty for a bare status), `dispute_id` (the report it answers or follows), `event` (migration 0019:
+  `resolved` · `reopened` · null), `created_at`, `read_at` (when the other side opened the thread). Every change of a
+  report's status (`POST /api/admin/disputes/:id/resolve { note? } | reopen`, or an answer sent with `resolve`) writes
+  one owner row with its `event` and the note as `body`: the person's thread says it, and the dot comes on. A person's rows go with their account and are in the nightly backup. A thread is the person's messages
+  and their reports (`disputes`) together, by date (`worker/messages.ts` `thread`).
+- `GET /api/messages` → `{ items, unread }`: items `{ kind: "message", id, fromOwner, body, disputeId, at, readAt }` or
+  `{ kind: "report", id, section, level, questionId, n, body, status, at, resolvedAt }`, oldest first, the newest 300
+  of each. `POST /api/messages { body, disputeId? }` → `201 { ok, id, at }`; `disputeId` only one of the person's own
+  reports; `400` `too_long`, `429 { error: "daily_cap", limit }` past **5 a person in 24 h**, `503 hold`. `limit` = `{ perDay, left,
+  resetAt }` (`resetAt`: when none is left, the moment the oldest of the five turns a day old) comes with the `GET` and
+  with every `POST`; the owner's messages and the person's reports are not counted. `POST /api/messages/read` marks the
+  owner's answers read. `GET /api/me` carries `unread` (the dot, the dashboard card).
+- Admin: `GET /api/admin/threads?filter=waiting|all&page=` (50 a page, the latest first; waiting = an unread message
+  or an open report; with the totals), `GET /api/admin/threads/:person` → `{ person, items }`,
+  `POST …/:person/read`, `POST …/:person/send { body, disputeId?, resolve? }`: one row from the owner, the person's
+  messages read, and with `resolve` (an open report) the report done with the answer as its note, the row's `event`
+  `resolved`. The admin keeps both pages: Reports (the tickets; `/reports`, the old `/disputes` still opens) and Messages (the chats). Overview `needs.messagesUnread`.
+- The page `web/app/pages/Messages.tsx` (the dashboard card `MessagesCard`); the admin's `web/admin/pages/Messages.tsx`.
 
 ## 3. Exam attempts (Server ↔ Rooms ↔ Pages)
 
@@ -144,7 +169,7 @@ a PATCH that never landed (network, a closed tab, a session expired elsewhere) i
 the room reopens and sent again; the copy goes when the attempt is finished.
 
 The attempt lives on the server; the deadline is the server's. Durations: CO 35 min, CE 60 min. Table `attempts`
-(migration 0001; `exam` 1…40, `answers` JSON `{ "CO-12-05": "B" }` by placement, `ended` done · time · abandon;
+(migration 0001; `exam` 1…42 (CO) or 1…44 (CE), `answers` JSON `{ "CO-12-05": "B" }` by placement, `ended` done · time · abandon;
 migration 0005 adds `mode` TEXT NOT NULL DEFAULT 'exam').
 
 - **Mode** (`exam` | `training`, chosen on the exam's page; shown as « Mode examen réel » / « Real exam mode » and
@@ -152,7 +177,9 @@ migration 0005 adds `mode` TEXT NOT NULL DEFAULT 'exam').
   the real thing — no going back in either section; CO plays each recording once, the next question cannot be
   opened before the recording has ended, and once it has the question keeps 2100 s / 39 − the recording's length
   (6 s at least; the whole exam stays 35 min) before the next comes by itself. `training` is the same questions and
-  the same running clock, but free movement everywhere, and CO may replay and scrub. The score and the NCLC are
+  the same running clock, but free movement everywhere, CO may replay and scrub, and **each answer is checked the
+  moment it is chosen** (right green, a wrong one crossed and the right one shown, the reasons and the key sentence
+  under the options as in practice; an answered question cannot change; the rail colours it green or red). The score and the NCLC are
   computed the same way; the attempts list shows the mode next to each row. Rows from before the column read as `exam`.
 - `POST /api/attempts { section, exam, mode? }` → `201 { attempt }` (`mode` missing → `exam`; anything but
   `exam` | `training` → `400 mode`); if one is already running for this person (any section, any mode) →
@@ -248,7 +275,7 @@ All inside `web/app/coce/room/`, exported from `web/app/coce/room/index.ts`:
   Réessayer when they apply and Signaler un problème always (the laptop's buttons, same handlers). **One FR | EN per page, never both languages at once** (the owner, 2026-10-23): one small pill — on the
   laptop's panel line, above the player or the passage on phones — turns the whole page (`data-english` on `.cr`):
   the passage, the transcript, the hint, the stem, the options and the key sentence show their English alone, in the
-  French's own type; nothing is shown twice. The section pages open on practice (`/co`), the 40 exams are the second
+  French's own type; nothing is shown twice. The section pages open on practice (`/co`), the exams are the second
   tab (`/co/exam`); the EE/EO second tab reads « Simulateur IA » / "AI Simulator". The body is one page
   (`.cr-left` is `display: contents`, the pieces ordered): the player, the question and its options, the feedback,
   then in listening two folded containers « Transcription » and « Indice » (`Fold` in Passage.tsx, always there,
@@ -277,15 +304,18 @@ All inside `web/app/coce/room/`, exported from `web/app/coce/room/index.ts`:
   (« Pourquoi pas C » then « La réponse était B — pourquoi B » / right: « Pourquoi B »), Suivant, Réessayer on red,
   Marquer vert/ambre chip, Réinitialiser in the footer with a Sheet, keyboard 1–4 / Enter / Space / Esc, opens at the
   next unanswered question (`pos`), or at the question a search hit named (`start`, from the address's `?q=37`; the
-  integrator reads it in `PracticeRoute`). Once a question is answered, a quiet small « Signaler un problème » /
-  "Report a problem" button (flag icon) sits under the feedback: it opens a Sheet with the question's reference
-  (« Compréhension orale · B1 · n° 12 »), one text field for the person's own words (2 000 characters at most),
-  Annuler / Envoyer; sent → toast « Merci, c'est envoyé » and the button reads « Signalé » (check icon, shut) for that
-  question from then on (§2b). Help settings live in the account:
+  integrator reads it in `PracticeRoute`). « Signaler un problème » / "Report a problem" is on every question in every
+  state — before, while and after answering, reported or not — always at the same place: the right end of the room's
+  top line on a laptop (the level's restart comes in at its left), a row of the ⋯ sheet on a phone. It opens a Sheet
+  with the question's reference (« Compréhension orale · B1 · n° 12 »), one text field for the person's own words
+  (2 000 characters at most), Annuler / Envoyer; sent → toast « Merci, c'est envoyé. Notre réponse arrivera dans
+  Messages. »; the button then wears a check for that question (the phone's row adds « · Signalé ») and still opens,
+  for another report (§2b). Help settings live in the account:
   `me.settings.help = { co: { autoplay, transcript, hint, english }, ce: { hint, english } }` through the `update` the
-  integrator passes in (`onSettings(patch)`), defaults all off. On the level list, a level with answers has
-  « Recommencer » (a Sheet to confirm): every question of the level back to grey, one `reset` each, in one bundle
-  (`record.resetLevel`); the exams do not change.
+  integrator passes in (`onSettings(patch)`), defaults all off. The level list's cards carry no action but
+  Ouvrir (every card the same layout). Inside a level with answers, « Recommencer le niveau » at the top right (in the
+  ⋯ sheet on phones; a Sheet to confirm that says all the level's progress goes, with the count, and cannot be undone):
+  every question of the level back to grey, one `reset` each, in one bundle (`record.resetLevel`); the exams do not change.
   CO player: the dark pill above (the accent play button, the sun line, « 0:20 / 0:53 »); no plays count and no play
   limit in practice. The transcript is read from its lines: the spoken question (the
   last line ending in « ? ») in its own small box marked « ? » above the speech, the four spoken options (« A. … »
@@ -298,15 +328,16 @@ All inside `web/app/coce/room/`, exported from `web/app/coce/room/index.ts`:
   has ended (`onEnded`), then the question keeps `2100 / 39 − duration` seconds (6 at least; the grace line drains over
   that span) and the next comes by itself; a recording that fails to load is skipped after 1.2 s as before; **CE moves
   freely between the questions in both modes**, as at the real test (2026-10-19: the owner's rule). In
-  `training` everything moves freely, the CO player is unlocked (replay, scrubber) and nothing advances by itself; the
-  clock runs the same. The title carries « · Libre » / « · Free » in training. Before a new attempt the hallway (below);
+  `training` everything moves freely, the CO player is unlocked (replay, scrubber), nothing advances by itself and each
+  answer shows right or wrong at once; the clock runs the same. The title carries « · Libre » / « · Free » in training.
+  Before a new attempt in the real mode the hallway (below; free mode has none: the room opens at once);
   the room opens the moment the attempt exists and CO's first recording autoplays when the browser allows it.
   Terminer → the one
   sheet above (the unanswered list, `done` or `abandon`); leave (Escape, the browser's back) → Sheet « Quitter l'examen ?
   Le temps continue » (the attempt keeps running); time up → freeze one second at 00:00 → `onFinished`. Answers go to the store at once and
   to `PATCH` 20 s after the last change (and on hide/leave with keepalive). Offline: a band inside the room; answers kept and sent later.
 - There is no review room any more: the result page (§5) holds the review. `/…/result/:id/review` redirects there.
-- **The hallway**: Commencer on the exam's page leads to the salle; with no attempt running, the same dark hallway as
+- **The hallway** (the real exam mode only): Commencer on the exam's page leads to the salle; with no attempt running, the same dark hallway as
   EE/EO (`web/app/sim/hallway.tsx`: the logo, the section's title « Examen CO n° 3 », 3 · 2 · 1 — one real second
   each, a short tone on every number and a higher one at the start (`playCount` in room/sound.ts, Web Audio, silent
   under reduced motion) — nothing else, no microphone check; drawn on `document.body` above every layer of the page,
@@ -332,8 +363,9 @@ All inside `web/app/coce/pages/`, exported from `web/app/coce/pages/index.ts`:
   (`/co/practice/A2?q=37`); then six level rows (name · questions · one sentence « Une question vaut 3 points ; les 4 de ce niveau font
   12 des 699 points d'un examen. » from `POINTS` × `EXAM_COUNT` · four-colour bar with its four counts spread
   `space-between` (green left, grey right) · Ouvrir), the legend — no « Continuer » card: practice never asks to
-  continue; Examen: 40 tiles, 5 a row (3 tablet, 2 phone), each with its number, the status chip
-  (Nouveau / Terminé / En cours), the **latest** score « 470 /699 » with its NCLC chip, and « n essais »; a new exam
+  continue; Examen: one tile an exam (42 CO, 44 CE), 5 a row (3 tablet, 2 phone), each with its number, the status chip
+  (À faire / Terminé / En cours; an exam added less than 30 days ago also wears a red « Nouveau » in its
+  top-right corner, and a level row « N nouvelles » under its name), the **latest** score « 470 /699 » with its NCLC chip, and « n essais »; a new exam
   keeps the same shape with « 0 /699 » and « 0 essais » in muted type. No score switch (`me.settings.examScore` is
   no longer read or written); the running attempt first if any.
 - `ExamCard({ section, exam, lang })` — the exam's page: `BackLink` « Tous les examens » top left, then a hero card
@@ -375,13 +407,13 @@ All inside `web/app/coce/pages/`, exported from `web/app/coce/pages/index.ts`:
 ## 6. Routes (integrator)
 
 ```
-/co  /ce                       SectionPage mode examen (the 40 tiles)      /co/practice  → mode entrainement (the levels)
+/co  /ce                       SectionPage mode examen (the exam tiles)      /co/practice  → mode entrainement (the levels)
 /co/exam                       → redirects to /co (`Redirect`, exported by the pages)
 /co/practice/B2                PracticeRoom (frame: rail collapsed); `?q=37` opens at question 37 (a search hit)
 /co/exam/12                    ExamCard
 /co/exam/12/room               ExamRoom (frame: rail hidden): on mount the integrator asks
                                  `GET /api/attempts/running` (this exam → resume at once; another → its salle); none →
-                                 the Hallway (3 · 2 · 1), and when it ends `POST /api/attempts { section, exam, mode }`
+                                 the Hallway (3 · 2 · 1; free mode skips it), and when it ends `POST /api/attempts { section, exam, mode }`
                                  with `mode` read from `new URLSearchParams(location.search).get("mode")`
                                  (`?mode=training` = the free mode); the exam file is fetched meanwhile; the room reads
                                  `attempt.mode` from the answer

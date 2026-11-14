@@ -14,13 +14,15 @@ export type PickerProps = {
   current: number;
   total: number;
   tone: (n: number) => PickTone;
+  /** questions added less than 30 days ago: a red dot */
+  fresh?: (n: number) => boolean;
   onPick?: (n: number) => void;
   lang: Lang;
   /** the four-colour legend under the grid (practice) */
   legend?: boolean;
 };
 
-export function Picker({ open, onClose, current, total, tone, onPick, lang, legend = false }: PickerProps) {
+export function Picker({ open, onClose, current, total, tone, fresh, onPick, lang, legend = false }: PickerProps) {
   const w = useRoomWords(lang);
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -38,9 +40,9 @@ export function Picker({ open, onClose, current, total, tone, onPick, lang, lege
             const t = tone(n);
             const label = `${w.questionOf(n, total)} · ${name(t)}`;
             return onPick ? (
-              <button key={n} type="button" role="listitem" className="cr-pick" data-tone={t} aria-current={n === current ? "true" : undefined} aria-label={label} onClick={() => { onPick(n); onClose(); }}>{n}</button>
+              <button key={n} type="button" role="listitem" className="cr-pick" data-tone={t} data-fresh={fresh?.(n) ? "" : undefined} aria-current={n === current ? "true" : undefined} aria-label={label} onClick={() => { onPick(n); onClose(); }}>{n}</button>
             ) : (
-              <span key={n} role="listitem" className="cr-pick" data-tone={t} aria-current={n === current ? "true" : undefined} aria-label={label}>{n}</span>
+              <span key={n} role="listitem" className="cr-pick" data-tone={t} data-fresh={fresh?.(n) ? "" : undefined} aria-current={n === current ? "true" : undefined} aria-label={label}>{n}</span>
             );
           })}
         </div>

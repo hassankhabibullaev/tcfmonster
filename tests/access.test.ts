@@ -40,6 +40,17 @@ describe("Cloudflare Access's token", () => {
     expect(await passedAccess(env, req(await token({ exp: Date.now() / 1000 - 1 })))).toBe(false);
     expect(await passedAccess(env, req(await token({ email: "someone@example.com" })))).toBe(false);
   });
+  it("several teams (a rename under way): a token from either is in, each team's own keys; a team not listed is shut, its keys never asked", async () => {
+    const NEW = "tcfmonster.cloudflareaccess.com";
+    const jwk = { ...(await crypto.subtle.exportKey("jwk", pair.publicKey)), kid: "k1", alg: "RS256" };
+    const asked: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => { asked.push(url); return Response.json({ keys: [jwk] }); });
+    const both = { ...env, ACCESS_TEAM: `${NEW}, ${TEAM}` } as unknown as Env;
+    expect(await passedAccess(both, req(await token({ iss: `https://${NEW}` })))).toBe(true);
+    expect(await passedAccess(both, req(await token({})))).toBe(true);
+    expect(await passedAccess(both, req(await token({ iss: "https://evil.cloudflareaccess.com" })))).toBe(false);
+    expect(asked).toEqual([`https://${NEW}/cdn-cgi/access/certs`, `https://${TEAM}/cdn-cgi/access/certs`]);
+  });
   it("the keys cannot be fetched: shut (fails closed)", async () => {
     vi.stubGlobal("fetch", async () => new Response("down", { status: 503 }));
     expect(await passedAccess(env, req(await token({})))).toBe(false);

@@ -26,6 +26,8 @@ type Line = { text: string };
 type Closing = { done: Line; cut: Line[]; lateQuestion: Line | null; farewell: Line | null };
 type Plan = { taskNo: TaskNo; intro: Line[]; subject: string[]; opening: Line; relance: Line; stop: Line; closing?: Closing; timing: Timing };
 type Phase = "preparing" | "intro" | "prep" | "connecting" | "listening" | "examiner" | "reconnecting" | "stopping" | "done" | "idle";
+/** Tâche 2: seconds before the end of the preparation when a fresh live connection is opened */
+const PREP_FRESH_S = 20;
 type Pending = Record<number, { durationS: number; failed?: boolean }>;
 /** what this browser keeps of the session's marks (a refresh shows them again; whatever was running is retried) */
 type Progress = { results: Record<number, TaskView>; summary: SessionSummary | null; pending?: Pending | null };
@@ -139,6 +141,10 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
     micMode,
     rt: null as LiveExaminer | null,
     rtP: null as Promise<LiveExaminer | null> | null,
+    /** Tâche 2: a fresh connection was asked near the end of the preparation; the one that said the situation, kept
+     *  until the fresh one is there (the fallback if it fails) */
+    prepFresh: false,
+    prepOld: null as LiveExaminer | null,
     rtFail: null as string | null,
     nextTaskIdx: -1,
     nextPlanP: null as Promise<Plan> | null,
@@ -311,6 +317,14 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
       if (p === "prep") {
         const l = Math.max(0, (st.prepEnd - Date.now()) / 1000);
         setLeft(l);
+        // the connection that read the situation has sat silent through the whole preparation (two minutes and more,
+        // nothing sent: a phone network or Google may drop such a socket without a word): a fresh one is opened in the
+        // last seconds, so she answers at once when the time is over (N5, 2026-11-11)
+        if (!st.prepFresh && st.plan && l <= Math.min(PREP_FRESH_S, st.plan.timing.prepS / 2)) {
+          st.prepFresh = true;
+          st.prepOld = st.rt;
+          st.rtP = rtConnect();
+        }
         if (l <= 0) void beginLive();
         return;
       }
@@ -342,8 +356,12 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
       if (!st.rt) return;
       const segS = (Date.now() - st.segStart) / 1000;
       const silenceS = (Date.now() - st.lastSpeechAt) / 1000;
-      // a reply that never came must not freeze the exchange
-      if (st.busy && !st.rt.talking && Date.now() - st.busySince > 12000) void rtListen();
+      // a reply that never came must not freeze the exchange: Google sent nothing at all since the turn was handed over
+      // (the socket is dead without having closed) → reopened like any cut, and she goes on; otherwise the floor comes back
+      if (st.busy && !st.rt.talking && Date.now() - st.busySince > 12000) {
+        if (st.rt.unanswered(12000)) st.rt.drop("no answer from Google");
+        else void rtListen();
+      }
       else if (p === "listening" && !st.busy && !st.spoke && segS >= t.idleRelanceS + 2) void rtRelance();
       // Tâche 1: the presentation is cut at 1 min 30 (a little earlier at a pause); closing the turn makes her go on
       else if (st.plan!.taskNo === 1 && p === "listening" && !st.introDone && st.spoke && introCut(t, segS, silenceS)) st.rt.setMic(false);
@@ -471,6 +489,8 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
     st.openingScript = script;
     st.openingSpoken = !!st.rt;
     if (plan.timing.prepS > 0) {
+      st.prepFresh = false;
+      st.prepOld = null;
       setPhaseBoth("prep");
       st.prepEnd = Date.now() + plan.timing.prepS * 1000;
       setLeft(plan.timing.prepS);
@@ -554,8 +574,15 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
     if (!plan || st.phase === "listening" || st.phase === "examiner" || st.phase === "connecting") return;
     setPhaseBoth("connecting");
     setLeft(plan.timing.speakS);
-    const rt = await (st.rtP ?? rtConnect());
+    let rt = await (st.rtP ?? rtConnect());
     st.rtP = null;
+    // after the preparation: the fresh connection, or the old one if the fresh one failed; the other one is closed
+    const old = st.prepOld;
+    st.prepOld = null;
+    if ((!rt || rt.isClosed) && old && !old.isClosed) rt = old;
+    else if (old && old !== rt) old.close();
+    // a connection that closed while it was awaited is never used: one fresh try
+    if (rt?.isClosed) rt = await rtConnect();
     if (st.stopRequested) {
       rt?.close();
       return;
@@ -583,6 +610,8 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
     }
     st.replaceNextLog = plan.opening.text;
     await say(plan.opening);
+    // her opening line got nothing at all back from Google: the connection is dead; reopened, she says it again
+    if (st.rt === rt && rt.unanswered(0) && !st.stopRequested) { rt.drop("no answer to the opening"); return; }
     if (phaseNow() !== "listening" && !st.stopRequested && st.rt) void rtListen();
   }
 
@@ -741,6 +770,7 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
       setPressing(false);
       if (st.stopRequested || st.phase === "stopping" || st.phase === "done") return;
       if (st.phase === "listening" || st.phase === "examiner") {
+        if (info.self === st.prepOld) { st.prepOld = null; return; }
         freeze();
         if (st.recOn) {
           st.recOn = false;
@@ -754,8 +784,10 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         setPhaseBoth("reconnecting");
         void rtRecover(info, reason);
       } else if (st.phase === "prep" || st.phase === "intro" || st.phase === "preparing") {
-        // before the exchange: reopened quietly in the background
-        st.rtP = rtConnect({ lastModel: info.model, avoid: /internal error|code 10(08|11)/i.test(reason) ? [info.model] : [] });
+        // before the exchange: reopened quietly in the background (unless the fresh one of the preparation's end is
+        // already on its way: then only the old one is forgotten)
+        if (info.self === st.prepOld) st.prepOld = null;
+        else if (!st.prepFresh) st.rtP = rtConnect({ lastModel: info.model, avoid: /internal error|code 10(08|11)/i.test(reason) ? [info.model] : [] });
       }
     },
   };

@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { api, unauthorized } from "../api.ts";
 import { cached } from "../api-cache.ts";
-import { apply, emptyState, LEVELS, type Event, type Level, type State } from "../../../shared/progress.ts";
+import { apply, emptyState, settle, LEVELS, type Event, type Level, type State } from "../../../shared/progress.ts";
 import type { Key, Question, Section } from "./bank.ts";
 
 export type { Event, Level, State };
@@ -112,7 +112,7 @@ function levelState(section: Section, level: Level): State {
   const k = `${section}/${level}`;
   const hit = viewCache.get(k);
   if (hit && hit.version === version) return hit.state;
-  let s = base[section]?.[level] ?? emptyState();
+  let s = settle(base[section]?.[level] ?? emptyState());
   for (const e of queue) if (e.section === section && e.level === level) s = apply(s, e);
   viewCache.set(k, { version, state: s });
   return s;
@@ -236,6 +236,8 @@ export type LevelStore = {
   answer: (q: Question, key: Key, dt?: number) => boolean;
   mark: (qid: string, s: "green" | "amber") => void;
   reset: (qid: string) => void;
+  /** « Recommencer le niveau »: every answered question of the level back to grey */
+  resetLevel: () => void;
   setPos: (n: number) => void;
   /** nothing of this level waits to be sent */
   synced: boolean;
@@ -269,7 +271,8 @@ export function useLevel(section: Section, level: Level): LevelStore {
   const mark = useCallback((qid: string, s: "green" | "amber") => record.mark(section, level, qid, s), [section, level]);
   const reset = useCallback((qid: string) => record.reset(section, level, qid), [section, level]);
   const setPos = useCallback((n: number) => record.pos(section, level, n), [section, level]);
-  return { state, answer, mark, reset, setPos, synced };
+  const resetLevel = useCallback(() => record.resetLevel(section, level), [section, level]);
+  return { state, answer, mark, reset, resetLevel, setPos, synced };
 }
 
 export function useSection(section: Section): { levels: Levels | null; refresh: () => Promise<void> } {

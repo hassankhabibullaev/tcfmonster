@@ -3,7 +3,7 @@ import { createContext, useContext } from "react";
 
 const fr = {
   // frame
-  home: "Accueil", profile: "Profil", aboutSite: "À propos de tcf.monster", mockExam: "Examen blanc", mockCode: "BLANC",
+  home: "Accueil", profile: "Profil", aboutSite: "À propos de tcf.monster", mockExam: "Examen blanc", mockCode: "BLANC", messages: "Messages", messagesNew: "Nouvelle réponse",
   langWord: "Langue", themeWord: "Thème", settings: "Réglages", menu: "Menu",
   skip: "Aller au contenu", lightMode: "Mode clair", darkMode: "Mode sombre",
   // door
@@ -85,7 +85,7 @@ const fr = {
 
 type Dict = typeof fr;
 const en: Dict = {
-  home: "Home", profile: "Profile", aboutSite: "About tcf.monster", mockExam: "Mock exam", mockCode: "MOCK",
+  home: "Home", profile: "Profile", aboutSite: "About tcf.monster", mockExam: "Mock exam", mockCode: "MOCK", messages: "Messages", messagesNew: "New answer",
   langWord: "Language", themeWord: "Theme", settings: "Settings", menu: "Menu",
   skip: "Skip to content", lightMode: "Light mode", darkMode: "Dark mode",
   signInTitle: "Sign in", email: "E-mail", password: "Password", show: "Show", hide: "Hide",

@@ -78,7 +78,7 @@ export function examFile(section: string, n: number) {
   return Array.from({ length: 39 }, (_, i) => ({ id: `q${i + 1}`, placement: `${section.toUpperCase()}-${String(n).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}`, position: i + 1, level: lv(i + 1), answer: "A", stem: "…", options: [] }));
 }
 /** ASSETS that serves exam files 1…`upTo` and nothing else */
-export function examAssets(upTo = 40, extra: Record<string, Response> = {}) {
+export function examAssets(upTo = 44, extra: Record<string, Response> = {}) {
   return {
     fetch: async (req: Request | string) => {
       const p = new URL(typeof req === "string" ? req : req.url).pathname;

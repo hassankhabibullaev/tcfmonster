@@ -30,16 +30,62 @@ const count = (sql: string, ...a: unknown[]) => Number((raw.prepare(sql).get(...
 describe("admin API", () => {
   beforeEach(() => raw.exec(demoSql()));
 
-  it("overview counts sign-ups and activity, with 30 days of sign-ups and active people", async () => {
+  it("today: sign-ups and activity against the week before, how far people went, what they use, the free plan's lines", async () => {
     const { status, data } = await call("/api/admin/overview");
     expect(status).toBe(200);
-    expect(data).toMatchObject({ people: 6, joined7: 2, joined30: 6, disputesOpen: 0 });
-    expect(data.active7).toBe(count("SELECT COUNT(*) n FROM users WHERE last_seen_at >= ?", new Date(Date.now() - 7 * 86400000).toISOString()));
-    expect(data.exams7).toBe(count("SELECT COUNT(*) n FROM attempts WHERE finished_at >= ?", new Date(Date.now() - 7 * 86400000).toISOString()));
-    expect(data.joined.reduce((n: number, r: Row) => n + r.n, 0)).toBe(6);
-    expect(data.active.length).toBeGreaterThan(0);
-    const first = new Date(Date.parse(data.today) - 29 * 86400000).toISOString().slice(0, 10);
-    for (const r of [...data.joined, ...data.active]) expect(r.d >= first && r.d <= data.today, r.d).toBe(true);
+    const week = new Date(Date.now() - 7 * 86400000).toISOString();
+    expect(data.people).toMatchObject({ total: 6, joined7: 2, joinedPrev7: 1 });
+    expect(data.people.active7).toBe(count("SELECT COUNT(*) n FROM users WHERE last_seen_at >= ?", week));
+    expect(data.people.studied7).toBeGreaterThan(0);
+    expect(data.work.exams7).toBe(count("SELECT COUNT(*) n FROM attempts WHERE finished_at >= ?", week));
+    expect(data.work.expression7).toBe(count("SELECT COUNT(*) n FROM expr_sessions WHERE status = 'done' AND finished_at >= ?", week));
+    expect(data.work.hours7).toBeGreaterThan(0);
+    // how far: each step counts people, never more than are registered
+    expect(data.funnel).toMatchObject({ registered: 6, named: 6, withKey: 3 });
+    expect(data.funnel.practised).toBe(count("SELECT COUNT(DISTINCT user_id) n FROM practice_days"));
+    expect(data.funnel.started).toBeGreaterThanOrEqual(data.funnel.practised);
+    for (const k of ["named", "started", "practised", "examined", "expressed", "mocked"]) expect(data.funnel[k], k).toBeLessThanOrEqual(6);
+    expect(data.sections.co.people).toBeGreaterThan(0);
+    expect(data.sections.co.answers + data.sections.ce.answers).toBe(data.work.answers7);
+    // 30 days a day each, today last; the people of a day never more than registered
+    expect(data.days).toHaveLength(30);
+    expect(data.days.at(-1).day).toBe(data.today);
+    for (const d of data.days) expect(d.people).toBeLessThanOrEqual(6);
+    expect(data.days.reduce((t: number, d: Row) => t + d.joined, 0)).toBe(count("SELECT COUNT(*) n FROM users WHERE created_at >= ?", new Date(Date.now() - 31 * 86400000).toISOString()));
+    // what the people who studied in 30 days used: each figure among them
+    expect(data.adoption.base).toBeGreaterThan(0);
+    for (const k of ["coPractice", "cePractice", "realExam", "freeExam", "ee", "eo", "mock", "key", "examDate", "autoplay", "transcript", "hint", "english"]) expect(data.adoption[k], k).toBeLessThanOrEqual(data.adoption.base);
+    // the key's states add up to everyone past the welcome
+    expect(Object.values(data.keys as Record<string, number>).reduce((a, b) => a + b, 0)).toBe(6);
+    expect(data.keys.ok).toBe(3);
+    expect(data.who.targets.reduce((t: number, r: Row) => t + r.n, 0)).toBe(count("SELECT COUNT(*) n FROM users WHERE target_nclc IS NOT NULL"));
+    expect(data.who.places.reduce((t: number, r: Row) => t + r.n, 0)).toBe(6);
+    expect(data.health.mail).toMatchObject({ resend: 0, brevo: 0, failed: 0, resendCap: 100, brevoCap: 300, brevoState: "unset" });
+    expect(data.health.mail.days).toHaveLength(14);
+    expect(data.health.writes).toMatchObject({ hold: 50000, limit: 100000 });
+    expect(data.health.writes.days).toHaveLength(14);
+    expect(data.exams).toBeUndefined();
+    expect(data.who.signedIn).toBe(count("SELECT COUNT(DISTINCT user_id) n FROM sessions WHERE expires_at > ?", new Date().toISOString()));
+    expect(data.health).toMatchObject({ writes: { hold: 50000 }, mail: { sent: 0, cap: 100 }, networks: { strict: 0, closed: 0 } });
+    // nothing waits for the owner in a quiet database
+    expect(data.needs).toMatchObject({ blocked: [], blockedTotal: 0, checks: [], disputesOpen: 0, mailFailed: [], jobsFailed: [] });
+  });
+
+  it("today lists what waits: a fresh block, a check failed again and again, a failed job, a failed mail", async () => {
+    await call("/api/admin/people/demo-2/block", { body: {} });
+    raw.prepare("UPDATE users SET human_needed_at = ?, human_reason = 'pace', human_fails = 4 WHERE id = 'demo-3'").run(new Date().toISOString());
+    raw.prepare("UPDATE users SET human_needed_at = ?, human_fails = 1 WHERE id = 'demo-4'").run(new Date().toISOString());
+    raw.prepare("INSERT INTO jobs (name, last_at, ok, detail, seconds) VALUES ('backup', ?, 0, 'R2 refused', 1.2), ('topics', ?, 1, 'fine', 3)").run(new Date().toISOString(), new Date().toISOString());
+    raw.prepare("INSERT INTO mail (at, email, kind, ok, detail) VALUES (?, 'amina@demo.tcf.monster', 'signin', 0, 'resend HTTP 429')").run(new Date().toISOString());
+    const { needs, health } = (await call("/api/admin/overview")).data;
+    expect(needs.blocked.map((r: Row) => r.id)).toEqual(["demo-2"]);
+    expect(needs.blocked[0].blocked_reason).toBe("by the owner");
+    expect(needs.blockedTotal).toBe(1);
+    expect(needs.checks.map((r: Row) => r.id)).toEqual(["demo-3"]);
+    expect(needs.jobsFailed.map((j: Row) => j.name)).toEqual(["backup"]);
+    expect(needs.mailFailed.length).toBe(1);
+    expect(health.jobs.length).toBe(2);
+    expect(health.mail.sent).toBe(1);
   });
 
   it("people: search, filters, sort and pages", async () => {
@@ -56,8 +102,100 @@ describe("admin API", () => {
     expect(a.exams).toBe(count("SELECT COUNT(*) n FROM attempts WHERE user_id = 'demo-1' AND finished_at IS NOT NULL"));
     expect(a.answered).toBe(count("SELECT SUM(answered) n FROM practice_days WHERE user_id = 'demo-1'"));
     expect(a.expression).toBe(count("SELECT COUNT(*) n FROM expr_sessions WHERE user_id = 'demo-1' AND status = 'done'"));
+    // the guard's list (a check pending or signs seen, not yet blocked) and the people who never started
+    raw.prepare("UPDATE users SET guard_signs = '{\"webdriver\":\"2026-11-10T10:00:00.000Z\"}' WHERE id = 'demo-2'").run();
+    raw.prepare("UPDATE users SET human_needed_at = 'x' WHERE id = 'demo-3'").run();
+    raw.prepare("UPDATE users SET human_needed_at = 'x', blocked_at = 'x' WHERE id = 'demo-4'").run();
+    expect((await call("/api/admin/people?filter=check")).data.rows.map((r: Row) => r.name).sort()).toEqual(["Daniyar", "Sofia"]);
+    expect((await call("/api/admin/people?filter=blocked")).data.rows.map((r: Row) => r.name)).toEqual(["Karim"]);
+    expect((await call("/api/admin/people?filter=idle")).data.total).toBe(0);
+    raw.prepare("INSERT INTO users (id, email, created_at) VALUES ('fresh', 'fresh@example.com', '2026-11-01T10:00:00.000Z')").run();
+    expect((await call("/api/admin/people?filter=idle")).data.rows.map((r: Row) => r.id)).toEqual(["fresh"]);
+    raw.prepare("DELETE FROM users WHERE id = 'fresh'").run();
     // a search for a quote or a percent sign is just text
     expect((await call("/api/admin/people?q=%27%25")).data.total).toBe(0);
+  });
+
+  it("the list compares people: activity, time, level, gain and practice colours, counted for each one", async () => {
+    const rows = (await call("/api/admin/people")).data.rows as Row[];
+    const a = rows.find((r) => r.id === "demo-1")!;
+    // the days of the last 30 with any work, and the last 14 as bits (bit 0 = today)
+    const off = 300, local = (iso: string) => new Date(Date.parse(iso) + off * 60000).toISOString().slice(0, 10);
+    const today = local(new Date().toISOString()), first = local(new Date(Date.now() - 29 * 86400000).toISOString());
+    const days = new Set<string>();
+    for (const r of raw.prepare("SELECT day FROM practice_days WHERE user_id = 'demo-1' AND answered > 0").all() as Row[]) days.add(r.day);
+    for (const t of ["attempts", "expr_sessions"]) for (const r of raw.prepare(`SELECT started_at FROM ${t} WHERE user_id = 'demo-1'`).all() as Row[]) days.add(local(r.started_at));
+    const in30 = [...days].filter((d) => d >= first && d <= today);
+    expect(a.days30).toBe(in30.length);
+    let mask = 0;
+    for (const d of in30) { const k = Math.round((Date.parse(today) - Date.parse(d)) / 86400000); if (k < 14) mask |= 1 << k; }
+    expect(a.mask).toBe(mask);
+    // time: practice, the exams' length, the sessions
+    const secs = count("SELECT SUM(seconds) n FROM practice_days WHERE user_id = 'demo-1'") + count("SELECT COALESCE(SUM(seconds), 0) n FROM expr_sessions WHERE user_id = 'demo-1' AND status = 'done'")
+      + count("SELECT SUM((julianday(finished_at) - julianday(started_at)) * 86400) n FROM attempts WHERE user_id = 'demo-1' AND finished_at IS NOT NULL");
+    expect(Math.abs(a.seconds - secs)).toBeLessThan(2);
+    // the best NCLC of each test, and the points between the first and the latest exam
+    expect(a.co).toBe(count("SELECT MAX(COALESCE(nclc, 3)) n FROM attempts WHERE user_id = 'demo-1' AND section = 'co' AND finished_at IS NOT NULL"));
+    expect(a.ee).toBe(count("SELECT MAX(COALESCE(nclc, 3)) n FROM expr_sessions WHERE user_id = 'demo-1' AND section = 'ee' AND status = 'done'"));
+    let gain = 0;
+    for (const sec of ["co", "ce"]) {
+      const list = raw.prepare("SELECT score FROM attempts WHERE user_id = 'demo-1' AND section = ? AND finished_at IS NOT NULL ORDER BY finished_at").all(sec) as Row[];
+      if (list.length >= 2) gain += list[list.length - 1].score - list[0].score;
+    }
+    expect(a.gain).toBe(gain);
+    const blobs = raw.prepare("SELECT data FROM progress WHERE user_id = 'demo-1'").all() as Row[];
+    const states = blobs.flatMap((b) => Object.values(JSON.parse(b.data).q) as Row[]).map((v) => v.s);
+    expect([a.ok, a.amber, a.bad]).toEqual(["green", "amber", "red"].map((c) => states.filter((x) => x === c).length));
+    expect(a.gemini_status).toBe("ok");
+    // a broken progress row counts as empty, a person with nothing shows zeros and no level
+    raw.prepare("UPDATE progress SET data = 'not json' WHERE user_id = 'demo-2'").run();
+    raw.prepare("INSERT INTO users (id, email, created_at) VALUES ('fresh', 'fresh@example.com', '2026-11-01T10:00:00.000Z')").run();
+    const again = (await call("/api/admin/people")).data.rows as Row[];
+    expect(again.find((r) => r.id === "demo-2")).toMatchObject({ ok: 0, amber: 0, bad: 0 });
+    expect(again.find((r) => r.id === "fresh")).toMatchObject({ answered: 0, exams: 0, expression: 0, seconds: 0, days30: 0, mask: 0, co: null, ce: null, ee: null, eo: null, gain: null });
+  });
+
+  it("the list sorts everyone before it cuts pages: every sort, both directions, 10 · 100 · 1 000 · 10 000 a page", async () => {
+    const everyone = (await call("/api/admin/people")).data;
+    expect(everyone.pageSize).toBe(100);
+    for (const size of [10, 1000, 10000]) expect((await call(`/api/admin/people?size=${size}`)).data.pageSize).toBe(size);
+    for (const size of ["50", "0", "-1", "abc", "100000"]) expect((await call(`/api/admin/people?size=${size}`)).data.pageSize, size).toBe(100);
+    // 26 people: three pages of 10, in the order of the whole list
+    const add = raw.prepare("INSERT INTO users (id, email, name, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)");
+    for (let i = 0; i < 20; i++) add.run(`x-${i}`, `x${String(i).padStart(2, "0")}@example.com`, `X${String(i).padStart(2, "0")}`, `2026-09-${String(i + 1).padStart(2, "0")}T10:00:00.000Z`, null);
+    const whole = (await call("/api/admin/people?size=100&sort=practice")).data;
+    expect(whole.total).toBe(26);
+    const paged: string[] = [];
+    for (let p = 0; p < 3; p++) {
+      const r = (await call(`/api/admin/people?size=10&sort=practice&page=${p}`)).data;
+      expect(r.rows.length).toBe(p < 2 ? 10 : 6);
+      paged.push(...r.rows.map((x: Row) => x.id));
+    }
+    expect(paged).toEqual(whole.rows.map((x: Row) => x.id));
+    // the six with answers lead, most first; the twenty without any follow
+    expect(whole.rows.slice(0, 6).map((x: Row) => x.id).sort()).toEqual(["demo-1", "demo-2", "demo-3", "demo-4", "demo-5", "demo-6"]);
+    const sorted = (xs: number[], desc = true) => [...xs].sort((a, b) => (desc ? b - a : a - b));
+    const col = async (qs: string, k: string) => ((await call(`/api/admin/people?${qs}`)).data.rows as Row[]).map((r) => r[k]);
+    for (const [sort, k] of [["practice", "answered"], ["active", "days30"], ["time", "seconds"], ["exams", "exams"], ["expression", "expression"], ["gain", "gain"]] as const) {
+      // nothing done counts as 0 (first when ascending); a gain that does not exist comes last either way
+      const down = await col(`sort=${sort}`, k), up = await col(`sort=${sort}&dir=asc`, k);
+      for (const [list, desc] of [[down, true], [up, false]] as const) {
+        const have = list.filter((v) => v != null) as number[];
+        expect(have, `${sort} ${desc ? "desc" : "asc"}`).toEqual(sorted(have, desc));
+        expect(list.slice(have.length).every((v) => v == null)).toBe(true);
+      }
+    }
+    // the level: the best NCLC of each test averaged, highest first; people with no result come last in both directions
+    const level = (r: Row) => { const v = [r.co, r.ce, r.ee, r.eo].filter((x) => x != null) as number[]; return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+    const byLevel = ((await call("/api/admin/people?sort=level")).data.rows as Row[]).map(level);
+    expect(byLevel.slice(0, 6)).toEqual(sorted(byLevel.slice(0, 6) as number[]));
+    expect(byLevel.slice(6).every((v) => v === null)).toBe(true);
+    const lastSeen = await col("sort=seen&dir=asc", "last_seen_at");
+    expect(lastSeen.slice(0, 6)).toEqual([...lastSeen.slice(0, 6)].sort());
+    expect(lastSeen.slice(6).every((v) => v === null)).toBe(true);
+    // with a working key, without
+    expect((await call("/api/admin/people?filter=key")).data.total).toBe(3);
+    expect((await call("/api/admin/people?filter=nokey")).data.total).toBe(23);
   });
 
   it("a person: profile without secrets, colours from the progress rows, attempts and devices", async () => {
@@ -74,6 +212,83 @@ describe("admin API", () => {
     expect(data.attempts.length).toBe(count("SELECT COUNT(*) n FROM attempts WHERE user_id = 'demo-1'"));
     expect(data.disputes).toEqual([]);
     expect((await call("/api/admin/people/nobody")).status).toBe(404);
+    // practice level by level: the colours of each progress row and the answers of its days
+    const b2 = raw.prepare("SELECT data FROM progress WHERE user_id = 'demo-1' AND section = 'co' ORDER BY level").all() as Row[];
+    expect(data.levels.filter((l: Row) => l.section === "co").length).toBe(b2.length);
+    expect(data.levels.filter((l: Row) => l.section === "co").reduce((n: number, l: Row) => n + l.ok, 0)).toBe(ok);
+    expect(data.levels.reduce((n: number, l: Row) => n + l.answered, 0)).toBe(count("SELECT SUM(answered) n FROM practice_days WHERE user_id = 'demo-1'"));
+    expect(data.signin).toEqual({ lockedUntil: null, failedLogins: 0, codes: { hour: 0, day: 0, hourMax: 3, dayMax: 10, limited: false } });
+    expect(data.mail).toEqual([]);
+    expect(data.mocks).toEqual([]);
+  });
+
+  it("a person who cannot get in: the pause after wrong passwords, the limit of codes, the mails sent — and « unlock »", async () => {
+    const soon = new Date(Date.now() + 600_000).toISOString(), now = new Date().toISOString();
+    raw.prepare("UPDATE users SET failed_logins = 3, locked_until = ? WHERE id = 'demo-1'").run(soon);
+    raw.prepare("INSERT INTO codes (email, purpose, code_hash, created_at, expires_at, sends, window_at, day_sends, day_at) VALUES ('amina@demo.tcf.monster', 'email', 'h', ?1, ?1, 3, ?1, 4, ?1)").run(now);
+    raw.prepare("INSERT INTO mail (at, email, kind, ok, detail) VALUES (?, 'amina@demo.tcf.monster', 'signin', 1, 'resend'), (?, 'amina@demo.tcf.monster', 'signin', 0, 'resend HTTP 429'), (?, 'sofia@demo.tcf.monster', 'signin', 1, 'resend')").run(now, now, now);
+    const before = (await call("/api/admin/people/demo-1")).data;
+    expect(before.signin).toMatchObject({ lockedUntil: soon, failedLogins: 3, codes: { hour: 3, day: 4, limited: true } });
+    expect(before.mail.map((m: Row) => m.ok)).toEqual([0, 1]);
+    expect(JSON.stringify(before)).not.toContain("code_hash");
+
+    expect((await call("/api/admin/people/demo-1/unlock", { body: {} })).status).toBe(200);
+    const after = (await call("/api/admin/people/demo-1")).data;
+    expect(after.signin).toMatchObject({ lockedUntil: null, failedLogins: 0, codes: { hour: 0, day: 0, limited: false } });
+    expect(after.guard.events[0]).toMatchObject({ kind: "admin", detail: "sign-in unlocked" });
+    // a pause that already ended is not one
+    raw.prepare("UPDATE users SET locked_until = '2020-01-01T00:00:00.000Z' WHERE id = 'demo-1'").run();
+    expect((await call("/api/admin/people/demo-1")).data.signin.lockedUntil).toBeNull();
+  });
+
+  it("a fresh try: one practice level, one exam attempt, one session, one mock exam — nothing else moves", async () => {
+    const n = (sql: string) => count(sql);
+    const days = n("SELECT COUNT(*) n FROM practice_days WHERE user_id = 'demo-1'");
+    const level = (raw.prepare("SELECT level FROM progress WHERE user_id = 'demo-1' AND section = 'co' LIMIT 1").get() as Row).level;
+    const rows = n("SELECT COUNT(*) n FROM progress WHERE user_id = 'demo-1'");
+    expect((await call("/api/admin/people/demo-1/reset-progress", { body: { section: "co", level } })).status).toBe(200);
+    expect(n("SELECT COUNT(*) n FROM progress WHERE user_id = 'demo-1'")).toBe(rows - 1);
+    expect(n("SELECT COUNT(*) n FROM practice_days WHERE user_id = 'demo-1'")).toBe(days);
+    expect((await call("/api/admin/people/demo-1/reset-progress", { body: { section: "co", level: "Z9" } })).status).toBe(400);
+    expect((await call("/api/admin/people/demo-1/reset-progress", { body: { section: "ee", level: "B2" } })).status).toBe(400);
+    expect(n("SELECT COUNT(*) n FROM progress WHERE user_id = 'demo-1'")).toBe(rows - 1);
+
+    const attempts = n("SELECT COUNT(*) n FROM attempts WHERE user_id = 'demo-1'");
+    const a = raw.prepare("SELECT id FROM attempts WHERE user_id = 'demo-1' LIMIT 1").get() as Row;
+    // someone else's attempt is not this person's to lose
+    expect((await call("/api/admin/people/demo-2/delete-attempt", { body: { id: a.id } })).status).toBe(404);
+    expect((await call("/api/admin/people/demo-1/delete-attempt", { body: { id: a.id } })).status).toBe(200);
+    expect(n("SELECT COUNT(*) n FROM attempts WHERE user_id = 'demo-1'")).toBe(attempts - 1);
+    expect((await call("/api/admin/people/demo-1/delete-attempt", { body: { id: a.id } })).status).toBe(404);
+
+    raw.prepare("INSERT INTO mocks (id, user_id, started_at, status, stage) VALUES (77, 'demo-1', '2026-11-01T10:00:00.000Z', 'running', 'ee')").run();
+    const add = raw.prepare("INSERT INTO expr_sessions (id, user_id, section, kind, taches, mock_id, started_at) VALUES (?, 'demo-1', ?, 'exam', '[1,2,3]', ?, '2026-11-01T10:00:00.000Z')");
+    add.run("s-mock", "ee", 77); add.run("s-free", "eo", null);
+    raw.prepare("INSERT INTO expr_tasks (id, session_id, task_no, prompt_json) VALUES ('t-mock', 's-mock', 1, '{}'), ('t-free', 's-free', 1, '{}')").run();
+    expect((await call("/api/admin/people/demo-1")).data.mocks[0]).toMatchObject({ id: 77, status: "running", stage: "ee", overall: null });
+    expect((await call("/api/admin/people/demo-1/delete-session", { body: { id: "s-mock" } })).status).toBe(400);
+    expect((await call("/api/admin/people/demo-2/delete-session", { body: { id: "s-free" } })).status).toBe(404);
+    expect((await call("/api/admin/people/demo-1/delete-session", { body: { id: "s-free" } })).status).toBe(200);
+    expect(n("SELECT COUNT(*) n FROM expr_tasks WHERE id = 't-free'")).toBe(0);
+    expect(n("SELECT COUNT(*) n FROM expr_tasks WHERE id = 't-mock'")).toBe(1);
+    expect((await call("/api/admin/people/demo-2/delete-mock", { body: { id: 77 } })).status).toBe(404);
+    expect((await call("/api/admin/people/demo-1/delete-mock", { body: { id: 77 } })).status).toBe(200);
+    expect(n("SELECT COUNT(*) n FROM mocks WHERE id = 77") + n("SELECT COUNT(*) n FROM expr_sessions WHERE id = 's-mock'") + n("SELECT COUNT(*) n FROM expr_tasks WHERE id = 't-mock'")).toBe(0);
+    // every one of them left a line the person's page shows
+    const said = (await call("/api/admin/people/demo-1")).data.guard.events.filter((e: Row) => e.kind === "admin").map((e: Row) => e.detail).sort();
+    expect(said.length).toBe(4);
+    expect(said[0]).toMatch(/^deleted C[OE] exam \d+$/);
+    expect(said.slice(1)).toEqual(["deleted EO session", "deleted mock exam 77", `reset practice CO ${level}`]);
+  });
+
+  it("one device signed out, the others stay; unblock clears a pending check too", async () => {
+    const [first] = (await call("/api/admin/people/demo-1")).data.devices;
+    expect((await call("/api/admin/people/demo-1/signout", { body: { session: first.id } })).data.removed).toBe(1);
+    expect(count("SELECT COUNT(*) n FROM sessions WHERE user_id = 'demo-1'")).toBe(1);
+    raw.prepare("UPDATE users SET human_needed_at = 'x', human_fails = 4, guard_signs = '{\"quiet\":\"2026-11-10T10:00:00.000Z\"}' WHERE id = 'demo-1'").run();
+    await call("/api/admin/people/demo-1/unblock", { body: {} });
+    const u = raw.prepare("SELECT human_needed_at, human_fails, guard_signs, blocked_at FROM users WHERE id = 'demo-1'").get() as Row;
+    expect(u).toMatchObject({ human_needed_at: null, human_fails: 0, guard_signs: null, blocked_at: null });
   });
 
   it("disputes as tickets: the list, one report with its sender, done with a note, reopened", async () => {
@@ -84,7 +299,7 @@ describe("admin API", () => {
     const list = (await call("/api/admin/disputes")).data;
     expect(list.rows.map((r: Row) => r.message)).toEqual(["Faute de frappe", "Audio coupé", "La réponse B est juste"]);
     expect([list.open, list.resolved]).toEqual([3, 0]);
-    expect((await call("/api/admin/overview")).data.disputesOpen).toBe(3);
+    expect((await call("/api/admin/overview")).data.needs.disputesOpen).toBe(3);
 
     const one = (await call("/api/admin/disputes/2")).data;
     expect(one).toMatchObject({ id: 2, n: 9, email: "amina@demo.tcf.monster", name: "Amina", reports: 2, status: "open", note: null });

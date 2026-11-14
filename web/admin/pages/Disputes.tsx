@@ -1,6 +1,8 @@
-// The reports people send from a practice question (« Signaler un problème »), as tickets: one list, newest first,
+// Reports (the one word for them, in the admin as in the app: « Signalement » / "Report"; `disputes` is only the
+// table's and the API's name): what people send from a practice question (« Signaler un problème »), as tickets: one list, newest first,
 // open · done · all; one report's page with the message, the question (its text read from the same bank files the
-// app uses), who sent it, and Mark done (with an optional note) / Reopen.
+// app uses), who sent it, and Mark done (with an optional answer) / Reopen. Either one leaves a line in the person's
+// Messages (« Signalement n° 12 · Traité » and the answer), where the whole conversation is (« Open the chat »).
 import { useEffect, useState } from "react";
 import { BackLink, Icon, Chip, Mark, Seg, Empty, Button } from "../../ui/ui.tsx";
 import { useApi, useLocation, setParams, linkProps, go, api, num, when, date, plural } from "../lib.ts";
@@ -31,7 +33,7 @@ const StatusChip = ({ d }: { d: Row }) => <Chip tone={d.status === "open" ? "amb
 const Ref = ({ d }: { d: Row }) => <span className="dispute-ref"><Mark s={d.section} /> <strong>{d.level} · n° {d.n}</strong></span>;
 
 /** the question as the person saw it: stem, options with the right one marked, the passage or the transcript */
-function QuestionText({ d }: { d: Row }) {
+export function QuestionText({ d }: { d: { section: string; level: string; question_id: string } }) {
   const [q, setQ] = useState<Q | null | undefined>(undefined);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
@@ -67,12 +69,12 @@ export function Disputes() {
   const who = (d: Row) => d.email ? (d.name ?? d.email) : "deleted account";
   return (
     <div className="page">
-      <div className="page-head"><h1 className="title">Disputes</h1></div>
+      <div className="page-head"><h1 className="title">Reports</h1></div>
       <div className="toolbar">
         <Seg label="Status" value={status} options={STATUS.map(([v, l]) => [v, data ? `${l} ${num(v === "open" ? data.open : v === "resolved" ? data.resolved : data.open + data.resolved)}` : l] as [string, string])} onChange={(v) => setParams({ status: v === "open" ? null : v, page: null })} />
       </div>
-      {error && <Empty icon="alert" title="Disputes could not load">{error}</Empty>}
-      {data && !data.rows.length && <Empty icon="check" title={status === "open" ? "Nothing open" : "No dispute"} />}
+      {error && <Empty icon="alert" title="Reports could not load">{error}</Empty>}
+      {data && !data.rows.length && <Empty icon="check" title={status === "open" ? "Nothing open" : "No report"} />}
       {data && data.rows.length > 0 && (
         <>
           <div className="card table-wrap desk-table">
@@ -80,8 +82,8 @@ export function Disputes() {
               <thead><tr><th>#</th><th>Question</th><th>Report</th><th>From</th><th>Sent</th><th>Status</th></tr></thead>
               <tbody>
                 {data.rows.map((d) => (
-                  <tr key={d.id} className="click" onClick={() => go(`/disputes/${d.id}`)}>
-                    <td className="num muted"><a href={`/disputes/${d.id}`} onClick={(e) => { e.stopPropagation(); linkProps(`/disputes/${d.id}`).onClick(e); }}>{d.id}</a></td>
+                  <tr key={d.id} className="click" onClick={() => go(`/reports/${d.id}`)}>
+                    <td className="num muted"><a href={`/reports/${d.id}`} onClick={(e) => { e.stopPropagation(); linkProps(`/reports/${d.id}`).onClick(e); }}>{d.id}</a></td>
                     <td className="nowrap"><Ref d={d} /></td>
                     <td className="msg-cell"><span className="ellipsis">{d.message}</span></td>
                     <td className="nowrap">{who(d)}</td>
@@ -95,7 +97,7 @@ export function Disputes() {
           <ul className="cards-list mob-list">
             {data.rows.map((d) => (
               <li key={d.id}>
-                <a className="card person-card" {...linkProps(`/disputes/${d.id}`)}>
+                <a className="card person-card" {...linkProps(`/reports/${d.id}`)}>
                   <span className="dispute-line"><Ref d={d} /><StatusChip d={d} /></span>
                   <span className="clamp-2">{d.message}</span>
                   <span className="person-card-meta"><span>#{d.id}</span><span>{who(d)}</span><span>{when(d.created_at)}</span></span>
@@ -128,15 +130,15 @@ export function Dispute({ id }: { id: number }) {
   const [busy, setBusy] = useState(false);
   const act = async (a: "resolve" | "reopen") => {
     setBusy(true);
-    try { await api(`/disputes/${id}/${a}`, a === "resolve" ? { note } : {}); if (a === "resolve") { say("Marked done"); go("/disputes"); } else { say("Open again"); reload(); } }
+    try { await api(`/disputes/${id}/${a}`, a === "resolve" ? { note } : {}); if (a === "resolve") { say("Done · told in their Messages"); go("/reports"); } else { say("Open again · told in their Messages"); reload(); } }
     catch (e) { say((e as Error).message, "bad"); }
     finally { setBusy(false); }
   };
-  if (error) return <div className="page"><BackLink to="/disputes" label="Disputes" /><Empty icon="flag" title={error === "no such dispute" ? "This dispute no longer exists" : "Could not load"}>{error !== "no such dispute" && error}</Empty></div>;
+  if (error) return <div className="page"><BackLink to="/reports" label="Reports" /><Empty icon="flag" title={error === "no such dispute" ? "This report no longer exists" : "Could not load"}>{error !== "no such dispute" && error}</Empty></div>;
   if (!d) return <div className="page"><div className="skeleton tall" /></div>;
   return (
     <div className="page">
-      <BackLink to="/disputes" label="Disputes" />
+      <BackLink to="/reports" label="Reports" />
       <div className="page-head dispute-head">
         <h1 className="title">#{d.id}</h1><Ref d={d} /><StatusChip d={d} />
       </div>
@@ -168,20 +170,20 @@ export function Dispute({ id }: { id: number }) {
               <dl className="kv">
                 <div><dt>Joined</dt><dd>{date(d.user_created_at, true)}</dd></div>
                 <div><dt>Last active</dt><dd>{when(d.last_seen_at)}</dd></div>
-                <div><dt>Disputes</dt><dd>{plural(d.reports, "report")}</dd></div>
+                <div><dt>Reports</dt><dd>{plural(d.reports, "report")}</dd></div>
               </dl>
             )}
           </section>
           <section className="card pad d-handle">
-            <h2>{d.status === "open" ? "Handle" : `Done ${date(d.resolved_at)}`}</h2>
+            <div className="card-head"><h2>{d.status === "open" ? "Handle" : `Done ${date(d.resolved_at)}`}</h2>{d.email && <a className="btn quiet sm" {...linkProps(`/messages/${d.user_id}`)}><Icon name="chat" size={14} /> Open the chat</a>}</div>
             {d.status === "open" ? (
               <>
-                <textarea className="note" value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Note (optional)" aria-label="Note" maxLength={2000} />
+                <textarea className="note" value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Answer (optional): it goes to their Messages with « done »" aria-label="Answer" maxLength={2000} />
                 <div className="note-actions"><Button kind="primary" icon="check" busy={busy} onClick={() => act("resolve")}>Mark done</Button></div>
               </>
             ) : (
               <>
-                {d.note ? <p className="dispute-msg">{d.note}</p> : <p className="muted">No note.</p>}
+                {d.note ? <p className="dispute-msg">{d.note}</p> : <p className="muted">Closed without words: their Messages say « Traité ».</p>}
                 <div className="note-actions"><Button busy={busy} onClick={() => act("reopen")}>Reopen</Button></div>
               </>
             )}

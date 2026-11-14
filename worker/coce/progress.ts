@@ -5,7 +5,7 @@
 import { type Env, json, fail, nowIso, day, addWrites, holdReached, readText } from "../util.ts";
 import type { Me } from "../auth.ts";
 import { isCanaryId, noteBeat, trapped } from "../guard.ts";
-import { type Event, type Level, type Section, type State, LEVELS, apply, emptyState } from "../../shared/progress.ts";
+import { type Event, type Level, type Section, type State, LEVELS, apply, emptyState, settle } from "../../shared/progress.ts";
 
 /** longest bundle read (bytes) and most events taken from one */
 const MAX_BODY = 256 * 1024;
@@ -75,7 +75,8 @@ const parseState = (data: string | null | undefined): State => {
     const s = JSON.parse(data) as Partial<State>;
     const out: State = { v: 1, q: s.q && typeof s.q === "object" ? s.q : {}, pos: typeof s.pos === "number" ? s.pos : null };
     if (s.x && typeof s.x === "object" && Object.keys(s.x).length) out.x = s.x;
-    return out;
+    // a merged question's entry moves onto the kept one (shared/progress.ts MERGED)
+    return settle(out);
   } catch { return emptyState(); }
 };
 

@@ -7,11 +7,12 @@ import { type Level, type Section, LEVELS, POINTS } from "../../shared/progress.
 import reference from "../sim/exam-reference.json" with { type: "json" };
 import { runningMock, toMockRow } from "../mock/row.ts";
 import { guardAmount, canaryPlacement, trapped } from "../guard.ts";
+import { EXAMS } from "../../shared/exams.ts";
 
 /** minutes allowed */
 export const DURATION_MIN: Record<Section, number> = { co: 35, ce: 60 };
-/** exams in the bank (exam-co-01 … exam-co-40) */
-export const EXAMS = 40;
+/** exams in the bank per section: shared/exams.ts */
+export { EXAMS };
 /** answers are still taken this long after the deadline (the browser's last PATCH on the way) */
 const GRACE_MS = 120_000;
 /** rows the list gives at most */
@@ -43,7 +44,7 @@ type ExamQuestion = { placement: string; level: Level; answer: Key };
 const isSection = (v: unknown): v is Section => v === "co" || v === "ce";
 const isKey = (v: unknown): v is Key => v === "A" || v === "B" || v === "C" || v === "D";
 const isMode = (v: unknown): v is Mode => v === "exam" || v === "training";
-/** "CO-12-05": section, exam 01…40, position 01…39 */
+/** "CO-12-05": section, exam 01…44, position 01…39 */
 const PLACEMENT = /^C[OE]-\d{2}-(0[1-9]|[12]\d|3\d)$/;
 const COLS = "id, user_id, section, exam, started_at, deadline_at, finished_at, ended, answers, score, nclc, right_count, wrong_count, blank_count, by_level, mode";
 
@@ -228,7 +229,7 @@ export async function handleAttempts(req: Request, env: Env, me: Me, path: strin
     const section = b.section;
     const exam = Number(b.exam);
     if (!isSection(section)) return fail(400, "section");
-    if (!Number.isInteger(exam) || exam < 1 || exam > EXAMS) return fail(400, "exam");
+    if (!Number.isInteger(exam) || exam < 1 || exam > EXAMS[section]) return fail(400, "exam");
     // the mode is optional (exam); anything but exam | training is refused
     if (b.mode != null && !isMode(b.mode)) return fail(400, "mode");
     const mode: Mode = isMode(b.mode) ? b.mode : "exam";

@@ -1,12 +1,14 @@
 // The relaxed room (UX §2.5): a level's questions, no timer, help toggles kept in the account, colours applied the
 // moment an answer is clicked (with a soft tone), Réessayer on red, Marquer vert/ambre on green/amber, Réinitialiser
-// in the footer when there is something to reset. The help lives on one right-aligned line at the top of the left
+// in the footer when there is something to reset; « Recommencer le niveau » at the top right (in ⋯ on phones) once the
+// level has an answer, after a sheet that says every answer of the level goes. The help lives on one right-aligned line at the top of the left
 // panel: CE « Texte complet ○ Indice court » and « Traduction anglaise »; CO « Transcription », « Indice court » and
 // « Traduction anglaise », under the player. Once answered, « Signaler un problème » under the feedback opens a sheet
 // for the person's own message about the question (POST /api/disputes); it says « Signalé » afterwards.
 import { cached } from "../../api-cache.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Icon, Sheet } from "../../../ui/ui.tsx";
+import { Button, Chip, Icon, Sheet } from "../../../ui/ui.tsx";
+import { isFresh, localDay } from "../../../../shared/exams.ts";
 import type { Lang } from "../../i18n.ts";
 import type { Level } from "../../../../shared/progress.ts";
 import { loadLevel, type Key, type Question, type Section } from "../bank.ts";
@@ -59,6 +61,7 @@ export function PracticeRoom({ section, level, lang, onExit, settings, onSetting
   const [help, setHelp] = useState<Help>(() => settings ?? {});
   const [picker, setPicker] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+  const [restartOpen, setRestartOpen] = useState(false);
   const player = useRef<PlayerHandle | null>(null);
   const rail = useRef<RailHandle>(null);
   const openedAt = useRef(Date.now());
@@ -163,6 +166,8 @@ export function PracticeRoom({ section, level, lang, onExit, settings, onSetting
     right: () => { if (answered) next(); },
   });
 
+  const today = localDay();
+  const fresh = useCallback((k: number) => isFresh(qs?.[k - 1]?.added, today), [qs, today]);
   const tone = useCallback((k: number): PickTone => { const e = qs ? store.state.q[qs[k - 1]?.id] : undefined; return e ? e.s : "grey"; }, [qs, store.state]);
   const parts = useMemo(() => {
     const c = { green: 0, amber: 0, red: 0 };
@@ -231,17 +236,11 @@ export function PracticeRoom({ section, level, lang, onExit, settings, onSetting
   const right = (
     <>
       <div className="cr-stem">
+        {isFresh(q.added, localDay()) && <span className="cr-added"><Chip tone="fresh">{w.added}</Chip></span>}
         <p><span lang="fr">{q.stem}</span>{english && q.stemEn && <span className="cr-en" lang="en">{q.stemEn}</span>}</p>
       </div>
       <Options options={q.options} chosen={chosen} answer={q.answer} reveal={answered} disabled={answered} english={english} lang={lang} onPick={pick} />
       <Feedback q={q} chosen={chosen} shown={answered} english={english} lang={lang} />
-      {answered && (
-        <div className="desk-only">
-          {reported.has(q.id)
-            ? <Button size="sm" kind="quiet" icon="check" disabled>{w.reported}</Button>
-            : <Button size="sm" kind="quiet" icon="flag" onClick={openReport}>{w.report}</Button>}
-        </div>
-      )}
     </>
   );
 
@@ -267,8 +266,15 @@ export function PracticeRoom({ section, level, lang, onExit, settings, onSetting
       </Button>
     </>
   );
+  const touched = parts.green + parts.amber + parts.red;
   const more = (
+    <>
+    {touched > 0 && <Button size="sm" kind="quiet" icon="refresh" className="cr-restart desk-only" onClick={() => setRestartOpen(true)}>{w.restart}</Button>}
+    {/* « Signaler un problème »: on every question, in every state — before, while and after answering — at the same
+        place (the top line's right end; the level's restart comes in at its left). A check once this question was reported; it still opens */}
+    <Button size="sm" kind="quiet" icon={reported.has(q.id) ? "check" : "flag"} className="cr-report desk-only" title={reported.has(q.id) ? w.reported : undefined} onClick={openReport}>{w.report}</Button>
     <button type="button" className="cr-more-btn mob-only" aria-label={w.more} aria-haspopup="dialog" aria-expanded={moreOpen} onClick={() => setMoreOpen(true)}><Icon name="more" size={20} /></button>
+    </>
   );
   // Lecture auto (listening) as a switch row; Marquer, Réessayer when they apply; Signaler un problème always
   const moreRows: MoreRow[] = [];
@@ -277,20 +283,25 @@ export function PracticeRoom({ section, level, lang, onExit, settings, onSetting
   if (canRetry) moreRows.push({ icon: "refresh", label: w.retry, on: retry });
   // Réinitialiser, the laptop's small footer button, lives here on phones (confirmed by the same sheet)
   if (colour !== "grey") moreRows.push({ icon: "x", label: w.reset, on: () => setResetOpen(true) });
-  moreRows.push({ icon: reported.has(q.id) ? "x" : "alert", tone: "bad", label: reported.has(q.id) ? w.reported : w.report, on: openReport, off: reported.has(q.id) });
+  moreRows.push({ icon: "alert", tone: "bad", label: reported.has(q.id) ? `${w.report} · ${w.reported}` : w.report, on: openReport });
+  if (touched > 0) moreRows.push({ icon: "refresh", tone: "bad", label: w.restart, on: () => setRestartOpen(true) });
 
   return (
     <Shell mode="practice" section={section} lang={lang} onBack={onExit} backLabel={w.back} title={title} progress={progress(n, total)}
       english={english} code={<b><Icon name={section} size={16} />{section.toUpperCase()}</b>} mid={level} subline={total ? `${n} / ${total}` : undefined} more={more}
-      strip={total ? <Strip current={n} total={total} tone={tone} onPick={(k) => go(k - 1)} lang={lang} /> : undefined}
-      rail={<Rail ref={rail} current={n} total={total} tone={tone} onPick={(k) => go(k - 1)} lang={lang} />}
+      strip={total ? <Strip current={n} total={total} tone={tone} fresh={fresh} onPick={(k) => go(k - 1)} lang={lang} /> : undefined}
+      rail={<Rail ref={rail} current={n} total={total} tone={tone} fresh={fresh} onPick={(k) => go(k - 1)} lang={lang} />}
       band={!online ? <><Icon name="wifiOff" size={16} /><span>{w.offlinePractice}</span></> : undefined}
       left={left} right={right} foot={foot}>
       <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} rows={moreRows} label={w.more} />
-      <Picker open={picker} onClose={() => setPicker(false)} current={n} total={total} tone={tone} onPick={(k) => go(k - 1)} lang={lang} legend />
+      <Picker open={picker} onClose={() => setPicker(false)} current={n} total={total} tone={tone} fresh={fresh} onPick={(k) => go(k - 1)} lang={lang} legend />
       <Sheet open={resetOpen} title={w.resetTitle} onClose={() => setResetOpen(false)}
         actions={<><Button onClick={() => setResetOpen(false)}>{w.cancel}</Button><Button kind="danger" onClick={() => { store.reset(q.id); setLocal({ qid: q.id, chosen: null, retrying: false }); setResetOpen(false); }}>{w.reset}</Button></>}>
         <p>{w.resetBody}</p>
+      </Sheet>
+      <Sheet open={restartOpen} title={w.restartTitle(level)} onClose={() => setRestartOpen(false)}
+        actions={<><Button onClick={() => setRestartOpen(false)}>{w.cancel}</Button><Button kind="danger" onClick={() => { store.resetLevel(); setLocal(null); setRestartOpen(false); }}>{w.restart}</Button></>}>
+        <p>{w.restartBody(level, touched)}</p>
       </Sheet>
       <Sheet open={reportOpen} title={w.report} onClose={() => setReportOpen(false)}
         actions={<><Button onClick={() => setReportOpen(false)}>{w.cancel}</Button><Button kind="primary" icon="send" busy={sending} disabled={!message.trim()} onClick={sendReport}>{w.send}</Button></>}>

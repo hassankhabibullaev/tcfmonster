@@ -16,7 +16,7 @@ export type AttemptRow = {
 };
 export type Attempt = AttemptRow & { answers?: Record<string, string>; byLevel?: Partial<Record<Level, { right: number; of: number }>> };
 
-export const EXAMS = 40;
+export { EXAMS } from "../../../../shared/exams.ts";
 export const EXAM_QUESTIONS = 39;
 export const DURATION_MIN: Record<CoceSection, number> = { co: 35, ce: 60 };
 

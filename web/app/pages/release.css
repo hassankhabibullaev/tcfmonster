@@ -1,21 +1,56 @@
-/* The release note (pages/ReleaseNote.tsx): a window in the middle of the screen over the blurred page; three counts,
-   one line on where to report, « Tout voir » and « Compris ». Tokens only. */
-dialog.release { width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: var(--border-strong) solid var(--ink); border-radius: var(--radius-lg); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-float); overflow: auto; }
+/* The release note (pages/ReleaseNote.tsx): a window in the middle of the screen over the blurred page, confetti from
+   two poppers behind it, two cards (what came, big numbers), one secondary line, where to report, « Tout voir » and the
+   primary button. Tokens only. */
+dialog.release { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: var(--border-strong) solid var(--ink); border-radius: var(--radius-lg); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-float); overflow: auto; }
+dialog.release[open] { animation: release-in var(--duration-move) var(--ease-out); }
 dialog.release::backdrop { background: color-mix(in srgb, var(--bg) 45%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
-.release-body { display: flex; flex-direction: column; gap: 12px; padding: 24px; }
-.release-tag { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: var(--radius-pill); background: var(--ok-soft); color: var(--ok); font-weight: 800; font-size: 12px; }
-.release h2 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 24px; line-height: 1.2; }
+.release-confetti { position: fixed; inset: 0; width: 100vw; height: 100dvh; pointer-events: none; z-index: 0; }
+.release-body { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 14px; padding: 24px; }
+.release-tag { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: var(--radius-pill); background: var(--sun-soft); color: var(--ink); font-weight: 800; font-size: 12px; }
+.release h2 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 30px; line-height: 1.1; letter-spacing: -0.01em; }
 .release p { margin: 0; }
-.release-counts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.release-counts li { display: grid; grid-template-columns: 22px 40px minmax(0, 1fr); align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--radius-md); background: var(--surface-2); font-weight: 700; font-size: 15px; }
-.release-counts li > svg { color: var(--accent); }
-.release-counts b { font-family: var(--font-display); font-size: 26px; line-height: 1; }
-.release-report { font-size: 14px; line-height: 1.5; color: var(--ink-muted); }
+
+/* the two cards: the section's icon, the big number, what it is, which numbers; each opens its exams */
+.release-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.release-card { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 16px; border: var(--border-strong) solid var(--ink); border-radius: var(--radius-md); color: var(--ink); text-decoration: none; box-shadow: 0 4px 0 var(--ink); transition: transform var(--duration-quick) var(--ease-out), box-shadow var(--duration-quick) var(--ease-out); }
+.release-card[data-s="co"] { background: var(--accent-soft); }
+.release-card[data-s="ce"] { background: var(--sun-soft); }
+.release-card:hover { transform: translateY(-2px); box-shadow: 0 6px 0 var(--ink); }
+.release-card:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+.release-card-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--surface); border: var(--border-hair) solid var(--ink); }
+.release-card-n { font-family: var(--font-display); font-weight: 700; font-size: 56px; line-height: 1; margin-top: 4px; }
+.release-card-what { font-weight: 800; font-size: 15px; line-height: 1.3; }
+.release-card-which { font-size: 13px; font-weight: 700; color: var(--ink-muted); }
+
+/* the secondary line */
+.release-more { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--radius-md); background: var(--surface-2); font-weight: 700; font-size: 15px; line-height: 1.35; }
+.release-more > svg { flex: none; color: var(--accent); }
+.release-report { font-size: 13px; line-height: 1.5; color: var(--ink-muted); }
 .release-report a { font-weight: 800; color: var(--accent); }
-.release-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+.release-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 2px; }
+
+@keyframes release-in { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { dialog.release[open] { animation: none; } }
 
 @media (max-width: 760px) {
-  .release-body { padding: 18px 16px; }
-  .release h2 { font-size: 20px; }
+  .release-body { padding: 18px 16px; gap: 12px; }
+  .release h2 { font-size: 24px; }
+  .release-cards { gap: 10px; }
+  .release-card { padding: 12px; }
+  .release-card-n { font-size: 44px; }
+  .release-card-what { font-size: 14px; }
   .release-actions > * { flex: 1; }
 }
+
+/* a release told in points (an icon, a bold lead, one or two lines) */
+.release-points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.release-points li { display: flex; gap: 12px; align-items: flex-start; padding: 10px 14px; border-radius: var(--radius-md); background: var(--surface-2); font-size: 15px; line-height: 1.4; }
+.release-point-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--surface); border: var(--border-hair) solid var(--ink); color: var(--accent); }
+.release-points a { font-weight: 800; color: var(--accent); white-space: nowrap; }
+/* the older releases under the newest, one row each */
+.release-earlier { border-top: var(--border-hair) solid var(--ink-muted); padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.release-earlier-title { font-weight: 800; font-size: 13px; color: var(--ink-muted); }
+.release-earlier ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.release-earlier li { display: flex; gap: 10px; font-size: 14px; line-height: 1.4; }
+.release-earlier-date { flex: none; min-width: 52px; font-weight: 800; color: var(--ink-muted); }
+.release-earlier a { font-weight: 800; color: var(--accent); }

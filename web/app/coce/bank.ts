@@ -1,6 +1,7 @@
 // The question bank as the browser sees it: files under /data/ for a signed-in person (docs/COCE.md §1), each fetched
 // once per visit.
 import type { Level } from "../../../shared/progress.ts";
+import { isFresh } from "../../../shared/exams.ts";
 
 export type Section = "co" | "ce";
 export type Key = "A" | "B" | "C" | "D";
@@ -24,6 +25,8 @@ export type Question = {
   maxPlays: number;
   passage: string | null; passageEn: string | null; passageImage: string | null;
   practiceOnly: boolean;
+  /** the day it joined the bank (YYYY-MM-DD), for « Nouveau » (shared/exams.ts); null for the first bank */
+  added?: string | null;
   /** exam files only */
   placement?: string; position?: number;
 };
@@ -33,7 +36,10 @@ export type BankIndex = {
   points: Record<Level, number>;
   examCount: Record<Level, number>;
   levels: Record<Section, Record<Level, number>>;
-  exams: number;
+  /** exams per section (shared/exams.ts) */
+  exams: Record<Section, number> | number;
+  /** each batch added to the bank: its day, its new exams, its new questions per level (« Nouveau » for 30 days) */
+  added?: { day: string; exams: Record<Section, number[]>; levels: Record<Section, Partial<Record<Level, number>>> }[];
 };
 
 const cache = new Map<string, Promise<unknown>>();
@@ -60,6 +66,16 @@ function load<T>(path: string): Promise<T> {
 }
 
 export const loadIndex = () => load<BankIndex>("/data/bank.json");
+
+/** the sections with something added less than 30 days ago (shared/exams.ts): the frame puts a red dot on their mark */
+export function freshSections(index: BankIndex | null | undefined, day: string): Set<Section> {
+  const out = new Set<Section>();
+  for (const b of index?.added ?? []) {
+    if (!isFresh(b.day, day)) continue;
+    for (const s of ["co", "ce"] as const) if ((b.exams?.[s]?.length ?? 0) > 0 || Object.keys(b.levels?.[s] ?? {}).length > 0) out.add(s);
+  }
+  return out;
+}
 // a level holds its own level's questions and an exam its 39 positions: anything else in a file is not for a page
 // (worker/guard.ts: a program answering it gives itself away)
 export const loadLevel = (section: Section, level: Level) => load<Question[]>(`/data/${section}-${level}.json`).then((qs) => qs.filter((q) => q.section === section && q.level === level));

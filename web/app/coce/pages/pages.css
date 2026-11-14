@@ -19,7 +19,6 @@
 .cp-dot.new { background: var(--new); box-shadow: inset 0 0 0 1px var(--line); }
 .cp-open { justify-self: end; }
 .cp-acts { display: flex; align-items: center; gap: 8px; }
-.cp-restart { color: var(--ink); }
 
 /* the search: a 320 px field at the right, above the levels; the hits as plain rows under it */
 .cp-search-block { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
@@ -174,9 +173,11 @@
   .cp-level > .cp-bar { grid-area: bar; }
   .cp-level .cbar { height: 8px; }
   .cp-counts { display: none; }
-  .cp-open { grid-area: open; width: 40px; height: 40px; padding: 0; border-radius: 50%; box-shadow: none; }
+  /* the wrapper holds « Recommencer » (when the level has answers) and ›: each a round 40 px button, side by side */
+  .cp-open { grid-area: open; gap: 6px; }
+  .cp-open .btn { width: 40px; height: 40px; padding: 0; border-radius: 50%; box-shadow: none; }
   .cp-legend { gap: 6px 14px; font-size: 12px; }
-  /* the 40 exams: three to a row from 360 px, two under that; the number, the score, the NCLC chip, the band on top */
+  /* the exams (42 CO, 44 CE): three to a row from 360 px, two under that; the number, the score, the NCLC chip, the band on top */
   .cp-exams { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .cp-exam { min-height: 0; gap: 6px; padding: 12px 10px 8px; border-radius: 14px; }
   .cp-exam-no { font-size: 28px; line-height: 1; }
@@ -253,3 +254,11 @@
   .cp-filters .chip-btn[data-tone="bad"] { color: var(--bad); }
   .cp-float { left: 16px; right: 16px; width: auto; bottom: calc(76px + env(safe-area-inset-bottom)); }
 }
+
+/* « Nouveau »: an exam or questions added less than 30 days ago (shared/exams.ts) */
+.cp-exam-added { position: absolute; top: 14px; right: 12px; }
+/* a level with new questions: a red dot on its name, and « 4 nouvelles » in red beside the count */
+.cp-level-name[data-fresh] { position: relative; justify-self: start; }
+.cp-level-name[data-fresh]::after { content: ""; position: absolute; top: -3px; right: -9px; width: 9px; height: 9px; border-radius: 50%; background: var(--bad); }
+.cp-level-new { display: inline-flex; align-items: center; margin-left: 10px; padding: 1px 8px; border-radius: var(--radius-pill); background: var(--bad-soft); color: var(--bad); font-family: var(--font-sans); font-weight: 800; font-size: 12px; white-space: nowrap; vertical-align: 2px; }
+@media (max-width: 760px) { .cp-level-m .cp-level-new { margin-left: 0; padding: 0 6px; font-size: 11px; vertical-align: 0; } }

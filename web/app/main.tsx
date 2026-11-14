@@ -18,6 +18,7 @@ import { Home } from "./pages/Home.tsx";
 import { SectionPage, ExamCard, ResultPage, RunningBand, Redirect, EXAMS, seedRunning } from "./coce/pages/index.ts";
 import { PracticeRoute, ExamSalle, ReviewRoute } from "./pages/CoceRooms.tsx";
 import { Profile } from "./pages/Profile.tsx";
+import { Messages } from "./pages/Messages.tsx";
 import { ReleaseNote } from "./pages/ReleaseNote.tsx";
 import { NotFound } from "./pages/NotFound.tsx";
 import { Expression } from "./pages/Expression.tsx";
@@ -230,8 +231,8 @@ function App() {
 
   let page;
   let m: RegExpMatchArray | null;
-  /** the exam routes exist for n° 1 … 40 only (`/co/examen/41` is not a page) */
-  const examNo = (s: string) => { const n = Number(s); return n >= 1 && n <= EXAMS ? n : null; };
+  /** the exam routes exist for the section's own exams only (shared/exams.ts: `/co/exam/43` is not a page) */
+  const examNo = (s: string, section = "co") => { const n = Number(s); return n >= 1 && n <= EXAMS[section as "co" | "ce"] ? n : null; };
   if (modern || me === undefined || (me === null && !isPublic) || (me && isPublic) || (me && me.name && path === "/welcome")) page = <Stuck lang={lang} />;
   else if (path === "/sign-in") page = <SignIn />;
   else if (path === "/welcome") page = <Welcome />;
@@ -239,22 +240,24 @@ function App() {
   // rooms bring their own frame (rail narrowed or hidden)
   else if ((m = path.match(/^\/(ee|eo)\/room\/([\w-]+)$/))) page = <Room s={m[1] as "ee" | "eo"} id={m[2]} />;
   else if ((m = path.match(/^\/(co|ce)\/practice\/(A1|A2|B1|B2|C1|C2)$/))) page = <PracticeRoute section={m[1] as "co" | "ce"} level={m[2] as "A1"} />;
-  else if ((m = path.match(/^\/(co|ce)\/exam\/(\d{1,2})\/room$/)) && examNo(m[2])) page = <ExamSalle section={m[1] as "co" | "ce"} exam={Number(m[2])} />;
-  else if ((m = path.match(/^\/(co|ce)\/exam\/(\d{1,2})\/result\/(\d+)\/review$/)) && examNo(m[2])) page = <ReviewRoute section={m[1] as "co" | "ce"} exam={Number(m[2])} attemptId={m[3]} />;
+  else if ((m = path.match(/^\/(co|ce)\/exam\/(\d{1,2})\/room$/)) && examNo(m[2], m[1])) page = <ExamSalle section={m[1] as "co" | "ce"} exam={Number(m[2])} />;
+  else if ((m = path.match(/^\/(co|ce)\/exam\/(\d{1,2})\/result\/(\d+)\/review$/)) && examNo(m[2], m[1])) page = <ReviewRoute section={m[1] as "co" | "ce"} exam={Number(m[2])} attemptId={m[3]} />;
   // the mock exam (docs/MOCK-EXAM.md): the initiation page and the sitting fill the screen
   else if (path === "/mock/new") page = <Initiation />;
   else if ((m = path.match(/^\/mock\/(\d{1,12})$/))) page = <Sitting id={Number(m[1])} />;
+  // Messages fills the screen like a room: the rail narrowed, the phone's bottom bar gone (the head has its way back)
+  else if (path === "/messages") page = <Frame mode="room"><Messages /></Frame>;
   else {
     let inner;
     const saveSettings = (p: Record<string, unknown>) => { void update({ settings: p }); };
     if (path === "/") inner = <Home />;
     else if ((m = path.match(/^\/(ee|eo)(\/practice)?$/))) inner = <Expression s={m[1] as "ee" | "eo"} tab={m[2] ? "practice" : "topics"} />;
     else if ((m = path.match(/^\/(ee|eo)\/result\/([\w-]+)$/))) inner = <Result s={m[1] as "ee" | "eo"} id={m[2]} />;
-    // the section opens on practice (the owner, 2026-10-23); the 40 exams are the second tab, /co/exam
+    // the section opens on practice (the owner, 2026-10-23); the exams are the second tab, /co/exam
     else if ((m = path.match(/^\/(co|ce)(\/exam)?$/))) inner = <SectionPage section={m[1] as "co" | "ce"} mode={m[2] ? "examen" : "entrainement"} lang={lang} settings={me?.settings} onSettings={saveSettings} />;
     else if ((m = path.match(/^\/(co|ce)\/practice$/))) inner = <Redirect to={`/${m[1]}`} />;
-    else if ((m = path.match(/^\/(co|ce)\/exam\/(\d{1,2})$/)) && examNo(m[2])) inner = <ExamCard section={m[1] as "co" | "ce"} exam={Number(m[2])} lang={lang} settings={me?.settings} onSettings={saveSettings} />;
-    else if ((m = path.match(/^\/(co|ce)\/exam\/(\d{1,2})\/result\/(\d+)$/)) && examNo(m[2])) inner = <ResultPage section={m[1] as "co" | "ce"} exam={Number(m[2])} attemptId={m[3]} lang={lang} />;
+    else if ((m = path.match(/^\/(co|ce)\/exam\/(\d{1,2})$/)) && examNo(m[2], m[1])) inner = <ExamCard section={m[1] as "co" | "ce"} exam={Number(m[2])} lang={lang} settings={me?.settings} onSettings={saveSettings} />;
+    else if ((m = path.match(/^\/(co|ce)\/exam\/(\d{1,2})\/result\/(\d+)$/)) && examNo(m[2], m[1])) inner = <ResultPage section={m[1] as "co" | "ce"} exam={Number(m[2])} attemptId={m[3]} lang={lang} />;
     else if (path === "/profile") inner = <Profile />;
     else if (path === "/mock") inner = <MockPage />;
     else if ((m = path.match(/^\/mock\/(\d{1,12})\/result$/))) inner = <MockResult id={Number(m[1])} />;

@@ -120,6 +120,8 @@ svg { display: block; flex: none; }
 .chip.new { background: var(--new); color: var(--ink-muted); }
 .chip.sun { background: var(--sun-soft); color: var(--ink); }
 .chip.accent { background: var(--accent-soft); color: var(--ink); }
+/* « Nouveau »: something added to the bank less than 30 days ago (shared/exams.ts) */
+.chip.fresh { background: var(--bad); color: #fff; }
 
 /* segmented control */
 .seg { display: inline-flex; padding: 3px; gap: 2px; border: var(--border-strong) solid var(--ink); border-radius: var(--radius-pill); background: var(--surface); }

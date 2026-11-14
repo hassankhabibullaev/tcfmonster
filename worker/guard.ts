@@ -27,7 +27,7 @@ export const GUARD = {
   day: {
     requests: { soft: 2000, hard: 6000 },
     writes: { soft: 800, hard: 2500 },
-    // different question-bank files (13 practice levels, 80 exams, the index): the whole bank is 94
+    // different question-bank files (12 practice levels, 86 exams, the index): the whole bank is 99
     bank: { soft: 40, hard: 150 },
     // exams, simulator sessions and mock exams started (all of them in a day is about 100)
     starts: { soft: 60, hard: 200 },

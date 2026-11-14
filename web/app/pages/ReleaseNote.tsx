@@ -1,68 +1,220 @@
-// The release note: once a release, a window over the blurred page (any page with the rail, never a room or an exam),
-// for the people who had an account before it. Only the summary — how many technical bugs, content mistakes and new
-// features — then where to report what is left (« Signaler un problème » under a question, Telegram for the rest) and
-// « Tout voir », the public page with every release in full (site/changes.html, tcf.monster/changes). Closed with
-// « Compris », Escape or a click outside; this browser remembers it (nothing on the server). The next release: a new
-// RELEASE id, new counts, and a new section at the top of site/changes.html.
-import { useEffect, useRef, useState } from "react";
+// The release note: a window over the blurred page (any page with the rail, never a room or an exam), for every
+// signed-in account, once a release. Several releases at once (someone back after a month): ONE window, never a row of
+// them — the newest in full, the others under it as short rows (« Aussi depuis votre dernière visite »), the rest on
+// tcf.monster/changes; closing it marks them all seen. A release counts when it is less than SHOW_DAYS old and newer
+// than what this browser last closed; one that only fixes things (`forNew: false`) is not news to an account made after
+// it. A release of new content opens with confetti from two poppers (none when the device asks for less motion).
+// Closed with the primary button, Escape or a click outside; this browser remembers it (nothing on the server). The
+// next release: a new entry at the top of RELEASES with its words and body, and a new section at the top of
+// site/changes.html.
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button, Icon } from "../../ui/ui.tsx";
-import { useT } from "../i18n.ts";
+import { linkProps } from "../../ui/router.ts";
+import { useT, type Lang } from "../i18n.ts";
 import { useMe } from "../main.tsx";
+import { dueReleases } from "../release-due.ts";
 import "./release.css";
 
-const RELEASE = "2026-10-30";
-const COUNTS = { bugs: 5, content: 9, features: 2 };
 const SEEN_KEY = "tcfm.release";
 export const ADMIN_TG = "https://t.me/tcfmonsteradmin";
 
+type Release = {
+  /** what this browser stores once the window is closed (the newest shown) */
+  id: string;
+  /** older values that mean this release was seen (the 2026-11-11 note was shown twice: « -2 ») */
+  also?: string[];
+  date: string;
+  /** shown to an account made after the release too (new content is news to anyone; fixes are not) */
+  forNew: boolean;
+  party: boolean;
+  /** the short row when an older release rides under a newer one */
+  row: Record<Lang, ReactNode>;
+};
+
+/** newest first */
+const RELEASES: Release[] = [
+  {
+    id: "2026-11-12", date: "2026-11-12", forNew: false, party: false,
+    row: { fr: "Messages, 4 bugs corrigés, 4 questions rectifiées, 5 doublons réunis", en: "Messages, 4 bugs fixed, 4 questions corrected, 5 repeats merged" },
+  },
+  {
+    id: "2026-11-11", also: ["2026-11-11-2"], date: "2026-11-11", forNew: true, party: true,
+    row: {
+      fr: <>Six nouveaux examens : <a {...linkProps("/co/exam")}>écoute n° 41–42</a>, <a {...linkProps("/ce/exam")}>lecture n° 41–44</a>, et 230 questions</>,
+      en: <>Six new exams: <a {...linkProps("/co/exam")}>listening no. 41–42</a>, <a {...linkProps("/ce/exam")}>reading no. 41–44</a>, and 230 questions</>,
+    },
+  },
+];
+
+const readSeen = () => { try { return localStorage.getItem(SEEN_KEY); } catch { return null; } };
+
 const WORDS = {
   fr: {
-    tag: "Nouvelle version",
-    title: "Vous nous avez écrit, nous avons corrigé.",
-    lead: "Merci pour vos signalements. Dans cette version :",
-    bugs: "bugs techniques corrigés", content: "erreurs de contenu rectifiées", features: "nouveautés que vous avez demandées",
-    report: "Une erreur dans une question ? « Signaler un problème » sous la question. Un souci technique ? Telegram :",
-    all: "Tout voir", ok: "Compris",
+    tag: "Nouveautés", earlier: "Aussi depuis votre dernière visite", all: "Tout voir", ok: "C'est parti !", got: "Compris",
+    report: "Une erreur dans une question ? « Signaler un problème » sous la question. Autre chose ? Écrivez-nous dans",
+    reportTail: "ou sur Telegram :", messages: "Messages",
   },
   en: {
-    tag: "New release",
-    title: "You wrote to us, we fixed it.",
-    lead: "Thank you for your reports. In this release:",
-    bugs: "technical bugs fixed", content: "content mistakes corrected", features: "new features you asked for",
-    report: "A mistake in a question? « Report a problem » under the question. A technical issue? Telegram:",
-    all: "See everything", ok: "Got it",
+    tag: "What's new", earlier: "Also since your last visit", all: "See everything", ok: "Let's go!", got: "Got it",
+    report: "A mistake in a question? « Report a problem » under the question. Anything else? Write to us in",
+    reportTail: "or on Telegram:", messages: "Messages",
   },
 };
 
-const seenHere = () => { try { return localStorage.getItem(SEEN_KEY) === RELEASE; } catch { return false; } };
+/* ---------- 2026-11-11: six new exams ---------- */
+const EXAMS = {
+  fr: { title: "Six nouveaux examens !", co: ["nouveaux examens", "de compréhension orale", "n° 41 et 42"], ce: ["nouveaux examens", "de compréhension écrite", "n° 41 à 44"], practice: (n: number) => `${n} nouvelles questions uniques à l'entraînement, de A1 à C2` },
+  en: { title: "Six new exams!", co: ["new exams", "in listening", "no. 41 and 42"], ce: ["new exams", "in reading", "no. 41 to 44"], practice: (n: number) => `${n} new unique practice questions, from A1 to C2` },
+};
+const CARDS = [{ n: 2, s: "co", to: "/co/exam" }, { n: 4, s: "ce", to: "/ce/exam" }] as const;
+function ExamsBody({ lang, close }: { lang: Lang; close: () => void }) {
+  const w = EXAMS[lang];
+  return (
+    <>
+      <h2 id="release-title">{w.title}</h2>
+      <div className="release-cards">
+        {CARDS.map(({ n, s, to }) => {
+          const [what, section, which] = w[s];
+          const link = linkProps(to);
+          return (
+            <a key={s} className="release-card" data-s={s} href={link.href} onClick={(e) => { close(); link.onClick(e); }}>
+              <span className="release-card-icon"><Icon name={s} size={20} /></span>
+              <b className="release-card-n num">{n}</b>
+              <span className="release-card-what">{what}<br />{section}</span>
+              <span className="release-card-which num">{which}</span>
+            </a>
+          );
+        })}
+      </div>
+      <p className="release-more"><Icon name="spark" size={16} />{w.practice(230)}</p>
+    </>
+  );
+}
+
+/* ---------- 2026-11-12: Messages, and what your reports changed ---------- */
+const NOV12 = {
+  fr: {
+    title: "Une messagerie avec nous",
+    points: [
+      { icon: "chat", b: "Messages", t: "Écrivez-nous directement dans l'app. Vos signalements sous les questions y arrivent aussi, avec notre réponse.", to: "/messages", go: "Ouvrir" },
+      { icon: "check", b: "4 bugs corrigés", t: "En mode libre, juste ou faux s'affiche dès votre réponse, sans compte à rebours au départ. « Recommencer le niveau » est maintenant dans le niveau. En Tâche 2, l'échange démarre plus sûrement après la préparation." },
+      { icon: "flag", b: "4 questions corrigées et 5 doublons réunis, grâce à vous", t: "Écoute C1 : l'habillage sonore des voitures. Lecture C2 : le téléphone intelligent, l'UNESCO et la lecture publique. Cinq questions d'écoute présentes deux fois à l'entraînement n'en font plus qu'une, votre progression gardée. Chaque signalement a sa réponse dans Messages." },
+    ],
+  },
+  en: {
+    title: "Messages with us",
+    points: [
+      { icon: "chat", b: "Messages", t: "Write to us right in the app. Your reports under the questions come there too, with our answer.", to: "/messages", go: "Open" },
+      { icon: "check", b: "4 bugs fixed", t: "In free mode, right or wrong shows as soon as you answer, with no countdown at the start. « Start level over » now sits inside the level. In Tâche 2, the exchange starts more reliably after the preparation." },
+      { icon: "flag", b: "4 questions corrected and 5 repeats merged, thanks to you", t: "Listening C1: car sound design. Reading C2: the smartphone, UNESCO and public reading. Five listening questions that were twice in practice are now one each, your progress kept. Every report has its answer in Messages." },
+    ],
+  },
+} as const;
+function Nov12Body({ lang, close }: { lang: Lang; close: () => void }) {
+  const w = NOV12[lang];
+  return (
+    <>
+      <h2 id="release-title">{w.title}</h2>
+      <ul className="release-points">
+        {w.points.map((p) => {
+          const link = "to" in p ? linkProps(p.to) : null;
+          return (
+            <li key={p.b}>
+              <span className="release-point-icon"><Icon name={p.icon} size={18} /></span>
+              <span><b>{p.b}</b> {p.t}{link && "go" in p && <> <a href={link.href} onClick={(e) => { close(); link.onClick(e); }}>{p.go} →</a></>}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
+}
+
+const BODIES: Record<string, (p: { lang: Lang; close: () => void }) => ReactNode> = { "2026-11-11": ExamsBody, "2026-11-12": Nov12Body };
+
+/** two poppers in the bottom corners throw confetti up and inward, once; nothing when the device asks for less motion */
+function useConfetti(on: boolean, canvas: React.RefObject<HTMLCanvasElement | null>) {
+  useEffect(() => {
+    const c = canvas.current;
+    if (!on || !c || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const ctx = c.getContext("2d");
+    if (!ctx) return;
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    const W = innerWidth, H = innerHeight;
+    c.width = W * dpr; c.height = H * dpr; ctx.scale(dpr, dpr);
+    const css = getComputedStyle(document.documentElement);
+    const colours = ["--accent", "--sun", "--ok", "--amber", "--bad"].map((v) => css.getPropertyValue(v).trim()).filter(Boolean);
+    const bits = Array.from({ length: Math.min(180, Math.round(W / 5)) }, (_, i) => {
+      const left = i % 2 === 0;
+      const angle = (left ? -1 : -1) * (Math.PI / 2) + (left ? 1 : -1) * (0.25 + Math.random() * 0.55);
+      const speed = (H / 60) * (0.75 + Math.random() * 0.6);
+      return {
+        x: left ? W * 0.04 : W * 0.96, y: H + 8,
+        vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        w: 6 + Math.random() * 6, h: 3 + Math.random() * 5, r: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.3,
+        c: colours[i % colours.length] || "#f07a5a", delay: Math.random() * 12, round: Math.random() < 0.3,
+      };
+    });
+    let frame = 0, raf = 0;
+    const tick = () => {
+      frame++;
+      ctx.clearRect(0, 0, W, H);
+      let alive = 0;
+      for (const b of bits) {
+        if (frame < b.delay) { alive++; continue; }
+        b.vy += 0.32; b.vx *= 0.99; b.vy *= 0.99; b.x += b.vx; b.y += b.vy; b.r += b.vr;
+        if (b.y > H + 20) continue;
+        alive++;
+        ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.r); ctx.fillStyle = b.c;
+        ctx.globalAlpha = frame > 150 ? Math.max(0, 1 - (frame - 150) / 60) : 1;
+        if (b.round) { ctx.beginPath(); ctx.arc(0, 0, b.h / 1.4, 0, Math.PI * 2); ctx.fill(); }
+        else ctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h * Math.abs(Math.cos(b.r * 2)) + 1);
+        ctx.restore();
+      }
+      if (alive && frame < 210) raf = requestAnimationFrame(tick);
+      else ctx.clearRect(0, 0, W, H);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [on, canvas]);
+}
 
 export function ReleaseNote() {
   const { lang } = useT();
   const { me } = useMe();
-  const [open, setOpen] = useState(() => !seenHere());
+  const [due] = useState(() => dueReleases(readSeen(), me?.created_at, new Date().toISOString().slice(0, 10), RELEASES));
+  const [open, setOpen] = useState(true);
   const ref = useRef<HTMLDialogElement>(null);
-  // only the people who were here before the release (a new account has nothing to compare with)
-  const show = open && !!me && me.created_at.slice(0, 10) <= RELEASE;
+  const confetti = useRef<HTMLCanvasElement>(null);
+  const show = open && !!me && due.length > 0;
   useEffect(() => { const d = ref.current; if (show && d && !d.open) d.showModal(); }, [show]);
+  useConfetti(show && due.some((r) => r.party), confetti);
   if (!show) return null;
   const w = WORDS[lang];
-  const close = () => { try { localStorage.setItem(SEEN_KEY, RELEASE); } catch { /* shown again next time */ } ref.current?.close(); setOpen(false); };
-  const rows: [number, string, "alert" | "check" | "flag"][] = [[COUNTS.bugs, w.bugs, "alert"], [COUNTS.content, w.content, "check"], [COUNTS.features, w.features, "flag"]];
+  const [top, ...older] = due;
+  const close = () => { try { localStorage.setItem(SEEN_KEY, RELEASES[0].id); } catch { /* shown again next time */ } ref.current?.close(); setOpen(false); };
+  const Body = BODIES[top.id];
+  const messages = linkProps("/messages");
   return (
     <dialog ref={ref} className="release" aria-labelledby="release-title" onClose={close} onClick={(e) => { if (e.target === ref.current) close(); }}>
+      <canvas ref={confetti} className="release-confetti" aria-hidden="true" />
       <div className="release-body">
-        <span className="release-tag"><Icon name="check" size={14} />{w.tag}</span>
-        <h2 id="release-title">{w.title}</h2>
-        <p className="muted">{w.lead}</p>
-        <ul className="release-counts">
-          {rows.map(([n, label, icon]) => <li key={label}><Icon name={icon} size={18} /><b className="num">{n}</b><span>{label}</span></li>)}
-        </ul>
-        <p className="release-report">{w.report} <a href={ADMIN_TG} target="_blank" rel="noopener">@tcfmonsteradmin</a></p>
+        <span className="release-tag"><span aria-hidden="true">🎉</span>{w.tag}</span>
+        <Body lang={lang} close={close} />
+        {older.length > 0 && (
+          <div className="release-earlier">
+            <p className="release-earlier-title">{w.earlier}</p>
+            <ul>{older.map((r) => <li key={r.id} onClick={(e) => { if ((e.target as HTMLElement).closest("a")) close(); }}><span className="release-earlier-date num">{shortDate(r.date, lang)}</span><span>{r.row[lang]}</span></li>)}</ul>
+          </div>
+        )}
+        <p className="release-report">{w.report} <a href={messages.href} onClick={(e) => { close(); messages.onClick(e); }}>{w.messages}</a> {w.reportTail} <a href={ADMIN_TG} target="_blank" rel="noopener">@tcfmonsteradmin</a></p>
         <div className="release-actions">
           <a className="btn" href="/changes" target="_blank" rel="noopener">{w.all}</a>
-          <Button kind="primary" onClick={close}>{w.ok}</Button>
+          <Button kind="primary" onClick={close}>{top.party ? w.ok : w.got}</Button>
         </div>
       </div>
     </dialog>
   );
 }
+
+const shortDate = (d: string, lang: Lang) => new Intl.DateTimeFormat(lang === "fr" ? "fr-FR" : "en-GB", { day: "numeric", month: "short" }).format(new Date(d + "T12:00:00"));

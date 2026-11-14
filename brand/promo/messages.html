@@ -1,0 +1,283 @@
+<!doctype html>
+<!-- The Messages announcement, as a short film (1080 × 1350, 20 s), in two parts on one phone:
+     1 · write to the team about anything (here a technical problem): typed, sent, read, answered;
+     2 · report a question that looks wrong: the question, « Report a problem » at the top right, the sheet, sent — and
+         the report in Messages, Received then Handled, with the team's answer.
+     Then the end card. The page draws any instant: render(ms). scripts/promo-render.mjs asks for each frame and makes
+     brand/promo/messages.mp4. Open the page alone to watch it play. An illustration: the conversation and the question
+     are made up. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>tcf.monster — Messages</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Nunito:wght@400;600;700;800&display=swap">
+<style>
+  :root { --bg: #fffbf2; --surface: #ffffff; --surface-2: #fff3df; --ink: #23201c; --muted: #6e665c; --line: #eadfcb; --accent: #ff6b4a; --accent-soft: #ffe6df; --sun: #ffc940; --sun-soft: #fff3c4; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1080px; height: 1350px; overflow: hidden; background: var(--bg); color: var(--ink); font-family: Nunito, system-ui, sans-serif; }
+  .stage { position: relative; width: 1080px; height: 1350px; overflow: hidden; }
+  .blob { position: absolute; border-radius: 50%; }
+  .blob.a { width: 520px; height: 520px; left: -200px; top: 860px; background: var(--sun-soft); }
+  .blob.b { width: 420px; height: 420px; right: -150px; top: 120px; background: var(--accent-soft); }
+
+  /* the line above the phone */
+  .caption { position: absolute; left: 0; right: 0; top: 62px; text-align: center; }
+  .tag { display: inline-block; padding: 8px 20px; border-radius: 999px; background: var(--sun); border: 3px solid var(--ink); font-weight: 800; font-size: 26px; letter-spacing: .04em; }
+  .heads { position: relative; height: 96px; margin-top: 22px; }
+  .head { position: absolute; left: 0; right: 0; top: 0; font-family: Fraunces, Georgia, serif; font-weight: 700; font-size: 60px; line-height: 1.1; letter-spacing: -0.01em; opacity: 0; }
+  .head .n { display: inline-grid; place-items: center; width: 68px; height: 68px; margin-right: 16px; border-radius: 50%; background: var(--accent); border: 4px solid var(--ink); font-size: 40px; vertical-align: 4px; }
+
+  /* the phone */
+  .phone { position: absolute; left: 240px; top: 268px; width: 600px; height: 1020px; border: 6px solid var(--ink); border-radius: 60px; background: var(--surface); overflow: hidden; box-shadow: 0 14px 0 var(--ink); display: flex; flex-direction: column; }
+  .top { flex: none; display: flex; align-items: center; gap: 12px; height: 76px; padding: 0 22px; background: var(--bg); border-bottom: 2px solid var(--line); }
+  .top img { width: 40px; height: 40px; }
+  .mark { font-family: Fraunces, Georgia, serif; font-weight: 700; font-size: 28px; }
+  .mark i { font-style: normal; color: var(--accent); }
+  .me { margin-left: auto; width: 44px; height: 44px; border-radius: 50%; background: var(--sun); border: 3px solid var(--ink); display: grid; place-items: center; font-weight: 800; font-size: 20px; }
+  .screens { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+  .screen { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--surface); }
+
+  /* the chat */
+  .chead { flex: none; display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 2px solid var(--line); }
+  .chead img { width: 52px; height: 52px; border-radius: 16px; }
+  .chead b { display: block; font-size: 23px; font-weight: 800; }
+  .chead span { font-size: 16px; color: var(--muted); }
+  .seg { margin-left: auto; display: flex; padding: 4px; border: 3px solid var(--ink); border-radius: 999px; font-weight: 800; font-size: 16px; }
+  .seg span { padding: 6px 14px; border-radius: 999px; color: var(--muted); }
+  .seg span.on { background: var(--ink); color: var(--bg); }
+  .scroll { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: 16px 16px 12px; background-color: var(--surface-2); background-image: radial-gradient(rgba(35, 32, 28, .08) 1.5px, transparent 1.5px); background-size: 22px 22px; }
+  .scroll > :first-child { margin-top: auto; }
+  .item { flex: none; overflow: hidden; }
+  .row { display: flex; padding: 5px 0; }
+  .row.mine { justify-content: flex-end; }
+  .bubble { max-width: 82%; padding: 12px 16px 8px; background: var(--surface); border: 2px solid var(--line); border-radius: 24px 24px 24px 8px; font-size: 21px; line-height: 1.4; box-shadow: 0 2px 0 rgba(35, 32, 28, .1); }
+  .mine .bubble { background: var(--accent-soft); border-color: transparent; border-radius: 24px 24px 8px 24px; }
+  .bubble.hello { background: var(--sun-soft); border-color: transparent; }
+  .time { display: flex; justify-content: flex-end; gap: 5px; margin-top: 2px; font-size: 14px; color: var(--muted); }
+  .tick { font-weight: 800; letter-spacing: -4px; padding-right: 4px; }
+  .tick.read { color: var(--accent); }
+  .ref { display: inline-block; font-size: 15px; font-weight: 800; background: var(--sun-soft); border-radius: 999px; padding: 3px 12px; margin-bottom: 6px; }
+  .report { width: 88%; padding: 14px 16px 8px; border-radius: 24px 24px 8px 24px; background: var(--surface); border: 3px dashed var(--muted); font-size: 21px; line-height: 1.4; }
+  .report .h { display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 19px; }
+  .chipbox { position: relative; height: 30px; width: 130px; }
+  .chip { position: absolute; right: 0; top: 0; white-space: nowrap; font-size: 15px; font-weight: 800; padding: 4px 13px; border-radius: 999px; background: var(--sun-soft); }
+  .chip.done { background: var(--accent-soft); }
+  .report .w { font-size: 16px; font-weight: 700; color: var(--muted); margin: 4px 0; }
+  .dots { display: flex; gap: 7px; padding: 8px 4px 10px; }
+  .dots i { width: 11px; height: 11px; border-radius: 50%; background: var(--muted); }
+  .foot { flex: none; padding: 12px 16px 22px; border-top: 2px solid var(--line); background: var(--surface); }
+  .limit { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 700; color: var(--muted); padding: 0 8px 10px; }
+  .pips { display: flex; gap: 4px; }
+  .pips i { width: 11px; height: 11px; border-radius: 50%; background: var(--accent); }
+  .composer { display: flex; align-items: flex-end; gap: 10px; }
+  .box { flex: 1; min-height: 58px; padding: 14px 22px; border-radius: 29px; background: var(--surface-2); border: 2px solid var(--line); font-size: 21px; line-height: 1.35; }
+  .ph { color: var(--muted); }
+  .caret { display: inline-block; width: 2px; height: 24px; margin-left: 1px; vertical-align: -4px; background: var(--ink); }
+  .send { flex: none; width: 58px; height: 58px; border-radius: 50%; background: var(--accent); border: 3px solid var(--ink); display: grid; place-items: center; }
+  .send svg { width: 26px; height: 26px; }
+
+  /* a question, with « Report a problem » at the right end of its top line */
+  .qtop { flex: none; display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 2px solid var(--line); }
+  .qback { width: 44px; height: 44px; border-radius: 50%; border: 3px solid var(--ink); display: grid; place-items: center; font-weight: 800; font-size: 22px; }
+  .qwhere { font-size: 15px; font-weight: 800; letter-spacing: .06em; color: var(--muted); line-height: 1.3; }
+  .qreport { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border: 3px solid var(--ink); border-radius: 999px; background: var(--surface); font-weight: 800; font-size: 17px; white-space: nowrap; }
+  .qbody { flex: 1; padding: 20px 20px 0; display: flex; flex-direction: column; gap: 16px; background: var(--bg); }
+  .passage { padding: 16px 18px; border-radius: 20px; background: var(--surface); border: 2px solid var(--line); font-size: 19px; line-height: 1.5; }
+  .stem { font-family: Fraunces, Georgia, serif; font-weight: 700; font-size: 25px; line-height: 1.25; }
+  .opt { display: flex; align-items: center; gap: 14px; padding: 13px 16px; border-radius: 18px; background: var(--surface); border: 3px solid var(--ink); font-size: 19px; font-weight: 700; }
+  .opt b { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-size: 16px; }
+  .shade { position: absolute; inset: 0; background: rgba(35, 32, 28, .45); opacity: 0; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 24px 30px; background: var(--surface); border-top: 4px solid var(--ink); border-radius: 36px 36px 0 0; display: flex; flex-direction: column; gap: 14px; }
+  .sheet h2 { font-family: Fraunces, Georgia, serif; font-weight: 700; font-size: 32px; }
+  .sheet .r { font-size: 17px; font-weight: 700; color: var(--muted); }
+  .area { min-height: 150px; padding: 14px 18px; border-radius: 18px; border: 3px solid var(--ink); background: var(--bg); font-size: 21px; line-height: 1.4; }
+  .acts { display: flex; justify-content: flex-end; gap: 12px; }
+  .btn { padding: 12px 26px; border-radius: 999px; border: 3px solid var(--ink); font-weight: 800; font-size: 20px; background: var(--surface); }
+  .btn.go { background: var(--accent); box-shadow: 0 5px 0 var(--ink); }
+  .toast { position: absolute; left: 24px; right: 24px; bottom: 40px; padding: 16px 22px; border-radius: 22px; background: var(--ink); color: var(--bg); font-size: 19px; font-weight: 700; line-height: 1.35; opacity: 0; }
+
+  .tap { position: absolute; width: 84px; height: 84px; border-radius: 50%; background: rgba(35, 32, 28, .22); border: 3px solid rgba(35, 32, 28, .5); left: 0; top: 0; opacity: 0; pointer-events: none; }
+
+  /* the end card */
+  .end { position: absolute; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; text-align: center; opacity: 0; }
+  .end img { width: 190px; height: 190px; }
+  .end h1 { font-family: Fraunces, Georgia, serif; font-weight: 700; font-size: 104px; line-height: 1; letter-spacing: -0.02em; }
+  .end p { font-size: 40px; font-weight: 700; color: var(--muted); max-width: 840px; line-height: 1.35; }
+  .end .pill { margin-top: 10px; padding: 16px 38px; border-radius: 999px; background: var(--accent); border: 4px solid var(--ink); box-shadow: 0 8px 0 var(--ink); font-family: Fraunces, Georgia, serif; font-weight: 700; font-size: 46px; }
+  .end .pill i { font-style: normal; color: var(--bg); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="blob a"></div><div class="blob b"></div>
+
+  <div class="caption">
+    <span class="tag">NEW ON TCF.MONSTER</span>
+    <div class="heads">
+      <div class="head" id="h1">Messages 💬</div>
+      <div class="head" id="h2"><span class="n">1</span>Write to us about anything</div>
+      <div class="head" id="h3"><span class="n">2</span>Report a question</div>
+      <div class="head" id="h4">…and get the answer in Messages</div>
+    </div>
+  </div>
+
+  <div class="phone" id="phone">
+    <div class="top"><img src="../app-icon.svg" alt=""><span class="mark">tcf<i>.</i>monster</span><span class="me">A</span></div>
+    <div class="screens">
+
+      <div class="screen" id="chat">
+        <div class="chead">
+          <img src="../app-icon.svg" alt="">
+          <div><b>The tcf.monster team</b><span>Usually answers within a few weeks</span></div>
+          <div class="seg"><span class="on">All</span><span id="segr">Reports</span></div>
+        </div>
+        <div class="scroll" id="scroll">
+          <div class="item" id="i-hello"><div class="row"><div class="bubble hello"><b>Hello Amina 👋</b><br>A question, a bug, an idea? Write to us here, we answer in this conversation.</div></div></div>
+          <div class="item" id="i-m1"><div class="row mine"><div class="bubble">The audio doesn't play in listening exam 12 on my phone 😕<div class="time">10:02 <span class="tick" id="tick">✓</span></div></div></div></div>
+          <div class="item" id="i-typing"><div class="row"><div class="bubble"><div class="dots"><i></i><i></i><i></i></div></div></div></div>
+          <div class="item" id="i-r1"><div class="row"><div class="bubble">Thanks for telling us! It's fixed, please try again 🙏<div class="time">10:05</div></div></div></div>
+          <div class="item" id="i-rep"><div class="row mine"><div class="report" id="rep">
+            <div class="h"><span>⚑ Report no. 24</span><span class="chipbox"><span class="chip" id="chip-a">Received</span><span class="chip done" id="chip-b">✓ Handled</span></span></div>
+            <div class="w">Compréhension écrite · B1 · question 12 →</div>
+            I think the answer is C, not A.
+            <div class="time">10:20</div>
+          </div></div></div>
+          <div class="item" id="i-r2"><div class="row"><div class="bubble"><span class="ref">✓ Report no. 24 · Handled</span><br>You were right: the answer is now C. Thank you!<div class="time">10:41</div></div></div></div>
+        </div>
+        <div class="foot">
+          <div class="limit"><span class="pips" id="pips"><i></i><i></i><i></i><i></i><i></i></span><span id="left">5 messages left today (5 a day)</span></div>
+          <div class="composer">
+            <div class="box" id="box"></div>
+            <div class="send" id="send"><svg viewBox="0 0 24 24" fill="none" stroke="#23201c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen" id="question">
+        <div class="qtop">
+          <span class="qback">←</span>
+          <span class="qwhere">COMPRÉHENSION ÉCRITE<br>B1 · 12 / 258</span>
+          <span class="qreport" id="qreport">⚑ Report a problem</span>
+        </div>
+        <div class="qbody">
+          <div class="passage">La médiathèque du quartier ouvrira désormais le dimanche matin. Les inscriptions aux ateliers de lecture se font à l'accueil, jusqu'au 15 mars.</div>
+          <div class="stem">Qu'annonce ce message ?</div>
+          <div class="opt"><b>A</b>La fermeture d'une médiathèque</div>
+          <div class="opt"><b>B</b>Un concours de lecture</div>
+          <div class="opt"><b>C</b>De nouveaux horaires d'ouverture</div>
+          <div class="opt"><b>D</b>Le prix d'un atelier</div>
+        </div>
+        <div class="shade" id="shade"></div>
+        <div class="sheet" id="sheet">
+          <h2>Report a problem</h2>
+          <div class="r">Compréhension écrite · B1 · n° 12</div>
+          <div class="area" id="area"></div>
+          <div class="acts"><span class="btn">Cancel</span><span class="btn go" id="sgo">Send</span></div>
+        </div>
+        <div class="toast" id="toast">✓ Thank you, it's sent. Our answer will come in Messages.</div>
+      </div>
+
+    </div>
+  </div>
+  <div class="tap" id="tap"></div>
+
+  <div class="end" id="end">
+    <img src="../app-icon.svg" alt="">
+    <h1>Messages</h1>
+    <p>Write to us, report a question: every one gets an answer.</p>
+    <div class="pill">tcf<i>.</i>monster</div>
+  </div>
+</div>
+<script>
+  const TOTAL = 20000;
+  const $ = (id) => document.getElementById(id);
+  const clamp = (x) => Math.max(0, Math.min(1, x));
+  const span = (t, a, b) => clamp((t - a) / (b - a));
+  const out = (p) => 1 - Math.pow(1 - p, 3);
+  const inout = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+  const TYPED = "The audio doesn't play in listening exam 12 on my phone 😕";
+  const NOTE = "I think the answer is C, not A.";
+  const chars = (s, p) => Array.from(s).slice(0, Math.round(p * Array.from(s).length)).join("");
+  const caret = (t) => `<span class="caret" style="opacity:${Math.floor(t / 300) % 2 ? 0 : 1}"></span>`;
+  // when each item of the conversation comes in (and, for the typing dots, goes)
+  const ITEMS = [["i-hello", 1300], ["i-m1", 4900], ["i-typing", 5800, 7000], ["i-r1", 7000], ["i-rep", 14000], ["i-r2", 15750]];
+  // a finger: where, from when it shows to when it lifts
+  const TAPS = [["send", 4550, 4900], ["qreport", 9350, 9850], ["sgo", 11800, 12150]];
+  const natural = {};
+  function measure() { for (const [id] of ITEMS) { const el = $(id); el.style.height = "auto"; natural[id] = el.offsetHeight; } }
+
+  function render(t) {
+    // the phone rises
+    $("phone").style.transform = `translateY(${(1 - out(span(t, 150, 1100))) * 1150}px)`;
+    const heads = [["h1", 0, 2400], ["h2", 2400, 8300], ["h3", 8300, 13600], ["h4", 13600, 17500]];
+    for (const [id, a, b] of heads) {
+      const come = out(span(t, a, a + 380));
+      $(id).style.opacity = Math.min(come, 1 - span(t, b - 280, b));
+      $(id).style.transform = `translateY(${(1 - come) * 22}px)`;
+    }
+    // the two screens: the chat, the question (it comes from the right and leaves the same way)
+    const q = inout(span(t, 8300, 8850)) - inout(span(t, 13350, 13900));
+    $("chat").style.transform = `translateX(${-q * 30}%)`;
+    $("question").style.transform = `translateX(${(1 - q) * 100}%)`;
+
+    // the conversation: each item grows into place, so the ones above slide up
+    for (const [id, at, gone] of ITEMS) {
+      const el = $(id), inner = el.firstElementChild;
+      let p = out(span(t, at, at + 380));
+      if (gone !== undefined) p = Math.min(p, 1 - span(t, gone, gone + 160));
+      el.style.height = `${natural[id] * p}px`;
+      el.style.opacity = p;
+      inner.style.transform = `scale(${0.86 + 0.14 * p})`;
+      inner.style.transformOrigin = inner.classList.contains("mine") ? "100% 100%" : "0% 100%";
+    }
+    document.querySelectorAll(".dots i").forEach((d, i) => { d.style.transform = `translateY(${-5 * Math.max(0, Math.sin((t / 170) - i * 0.9))}px)`; });
+    // 1 · typed, sent, read
+    const sent = t >= 4900;
+    $("box").innerHTML = sent || t < 2600 ? '<span class="ph">Your message</span>' : chars(TYPED, span(t, 2700, 4450)) + caret(t);
+    $("tick").textContent = t >= 5600 ? "✓✓" : "✓";
+    $("tick").className = t >= 5600 ? "tick read" : "tick";
+    document.querySelectorAll("#pips i").forEach((d, i) => { d.style.background = sent && i === 0 ? "rgba(35,32,28,.2)" : ""; });
+    $("left").textContent = sent ? "4 messages left today (5 a day)" : "5 messages left today (5 a day)";
+
+    // 2 · the sheet rises from the question, the report is typed and sent, the toast says where the answer comes
+    const sheet = out(span(t, 9850, 10300)) - out(span(t, 12150, 12500));
+    $("sheet").style.transform = `translateY(${(1 - sheet) * 105}%)`;
+    $("shade").style.opacity = sheet;
+    $("area").innerHTML = t < 10400 ? '<span class="ph">Your message</span>' : chars(NOTE, span(t, 10450, 11650)) + (t < 12150 ? caret(t) : "");
+    $("toast").style.opacity = Math.min(out(span(t, 12350, 12650)), 1 - span(t, 13200, 13400));
+    $("toast").style.transform = `translateY(${(1 - out(span(t, 12350, 12650))) * 30}px)`;
+
+    // …and in Messages: Received, then Handled
+    const done = out(span(t, 15550, 15950));
+    $("chip-a").style.opacity = 1 - done; $("chip-b").style.opacity = done;
+    $("chip-b").style.transform = `scale(${0.7 + 0.3 * done})`;
+    $("rep").style.borderStyle = done > 0.5 ? "solid" : "dashed";
+    $("rep").style.borderColor = done > 0.5 ? "#eadfcb" : "";
+    $("segr").textContent = t >= 14000 ? "Reports · 1" : "Reports";
+    const sc = $("scroll"); sc.scrollTop = sc.scrollHeight;
+
+    // the finger, and what it presses
+    let finger = 0, fx = 0, fy = 0, fs = 1;
+    for (const [id, a, b] of TAPS) {
+      const el = $(id), press = Math.max(0, 1 - Math.abs(t - (b - 70)) / 130);
+      el.style.transform = `scale(${1 - 0.1 * press})`;
+      const o = Math.min(span(t, a, a + 200), 1 - span(t, b, b + 180));
+      if (o > 0) { const r = el.getBoundingClientRect(); finger = o; fx = r.left + r.width / 2 - 42; fy = r.top + r.height / 2 - 42; fs = 0.7 + 0.3 * span(t, a, b - 70); }
+    }
+    $("tap").style.opacity = finger; $("tap").style.transform = `translate(${fx}px, ${fy}px) scale(${fs})`;
+
+    // the end card
+    const end = out(span(t, 17500, 18000));
+    $("end").style.opacity = end;
+    $("end").style.transform = `scale(${1.04 - 0.04 * end})`;
+    const kids = $("end").children;
+    for (let i = 0; i < kids.length; i++) { const p = out(span(t, 17700 + i * 140, 18150 + i * 140)); kids[i].style.opacity = p; kids[i].style.transform = `translateY(${(1 - p) * 30}px)`; }
+  }
+
+  window.ready = (async () => { await document.fonts.ready; await Promise.all([...document.images].map((i) => i.decode().catch(() => {}))); measure(); render(0); return TOTAL; })();
+  window.render = render;
+  // opened alone: it plays, then starts again
+  if (!new URLSearchParams(location.search).has("frames")) window.ready.then(() => { const t0 = performance.now(); const tick = () => { render((performance.now() - t0) % (TOTAL + 800)); requestAnimationFrame(tick); }; tick(); });
+</script>
+</body>
+</html>

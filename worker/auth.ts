@@ -16,14 +16,14 @@ const OWNER_SESSION_MAX_DAYS = 14;
 const CODE_MINUTES = 5;
 const CODE_TRIES = 5;
 /** the first code and two more an hour (the page offers « Renvoyer le code » after a minute, twice) */
-const CODES_PER_HOUR = 3;
+export const CODES_PER_HOUR = 3;
 const RESEND_SECONDS = 60;
 /** codes sent for one network (a keyed hash of its address) in a day, whatever the addresses asked for; a network a
  *  bot was caught on lately (worker/networks.ts) gets fewer */
 const NET_CODES_PER_DAY = 15;
 const STRICT_NET_CODES_PER_DAY = 5;
 /** codes a day for one address: at most 50 guesses a day at any account (each code allows 5) */
-const CODES_PER_DAY = 10;
+export const CODES_PER_DAY = 10;
 const LOGIN_FAILS = 10;
 const LOCK_MINUTES = 15;
 /** one address a minute: codes asked (whatever the e-mails: no mail bombing from here), passwords and codes tried */

@@ -76,7 +76,7 @@ describe("the admin's Disputes page", () => {
   it("lists newest first with who sent it, resolves and reopens, and the Overview counts the open ones", async () => {
     await report({ n: 3, message: "first" });
     await report({ section: "ce", level: "C1", questionId: "ce-9", n: 9, message: "second" });
-    expect((await admin("/overview")).data.disputesOpen).toBe(2);
+    expect((await admin("/overview")).data.needs.disputesOpen).toBe(2);
     const list = (await admin("/disputes")).data;
     expect(list.rows.map((r: Record<string, unknown>) => r.message)).toEqual(["second", "first"]);
     expect(list.rows[0]).toMatchObject({ email: "a@b.com", section: "ce", level: "C1", question_id: "ce-9", n: 9, status: "open" });
@@ -84,7 +84,7 @@ describe("the admin's Disputes page", () => {
 
     const id = list.rows[1].id;
     expect((await admin(`/disputes/${id}/resolve`, {})).status).toBe(200);
-    expect((await admin("/overview")).data.disputesOpen).toBe(1);
+    expect((await admin("/overview")).data.needs.disputesOpen).toBe(1);
     expect((await admin("/disputes")).data.rows.map((r: Record<string, unknown>) => r.message)).toEqual(["second"]);
     const resolved = (await admin("/disputes?status=resolved")).data.rows;
     expect(resolved.length).toBe(1);

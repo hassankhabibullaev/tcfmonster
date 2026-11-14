@@ -174,7 +174,7 @@ export function Button({ kind = "plain", size = "md", busy, icon, children, clas
   );
 }
 
-export type Tone = "ok" | "bad" | "amber" | "new" | "sun" | "accent" | "muted";
+export type Tone = "ok" | "bad" | "amber" | "new" | "sun" | "accent" | "muted" | "fresh";
 export function Chip({ tone = "muted", children, dot }: { tone?: Tone; children: ReactNode; dot?: boolean }) {
   return <span className={`chip ${tone}`}>{dot && <i className="chip-dot" />}{children}</span>;
 }

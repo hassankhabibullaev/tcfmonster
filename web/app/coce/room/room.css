@@ -414,3 +414,11 @@ button.cr-pick:hover { border-color: var(--ink); }
   .cr-picker-grid { grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 6px; max-height: 50dvh; }
   .cr-pick { height: 40px; }
 }
+
+/* « Nouveau » above the stem of a question added less than 30 days ago (shared/exams.ts) */
+.cr-added { display: block; margin-bottom: 6px; }
+
+/* a question added less than 30 days ago (shared/exams.ts): a red dot on its disc, in the rail, the strip and the picker */
+.cr-disc[data-fresh], .cr-rail-item.cr-disc[data-fresh], .cr-pick[data-fresh] { position: relative; }
+.cr-disc[data-fresh]::after, .cr-pick[data-fresh]::after { content: ""; position: absolute; top: -1px; right: -1px; width: 10px; height: 10px; border-radius: 50%; background: var(--bad); box-shadow: 0 0 0 2px var(--surface); pointer-events: none; }
+.cr-pick[data-fresh]::after { top: 4px; right: 4px; }

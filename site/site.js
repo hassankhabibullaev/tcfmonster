@@ -28,7 +28,7 @@
   var descEN = descEl ? descEl.content : "";
   var root = document.documentElement;
   var titleFR = root.dataset.titleFr || "tcf.monster — préparez le TCF Canada, gratuitement";
-  var descFR = root.dataset.descFr || "Les quatre épreuves du TCF Canada, gratuitement : 80 examens chronométrés, un examen blanc complet, un entraînement de A1 à C2 avec une explication pour chaque réponse, et Monster AI pour l'écrit et l'oral.";
+  var descFR = root.dataset.descFr || "Les quatre épreuves du TCF Canada, gratuitement : 86 examens chronométrés, un examen blanc complet, un entraînement de A1 à C2 avec une explication pour chaque réponse, et Monster AI pour l'écrit et l'oral.";
 
   function setLang(lang) {
     var dict = lang === "en" ? window.EN : null;

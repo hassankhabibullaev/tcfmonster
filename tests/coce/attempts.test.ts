@@ -28,7 +28,7 @@ beforeEach(() => {
     fetch: async (req: Request) => {
       assetReads++;
       const m = new URL(req.url).pathname.match(/^\/data\/exam-(co|ce)-(\d\d)\.json$/);
-      if (!m || Number(m[2]) > 40) return new Response("not found", { status: 404 });
+      if (!m || Number(m[2]) > (m[1] === "co" ? 42 : 44)) return new Response("not found", { status: 404 });
       return new Response(JSON.stringify(exam(m[1], Number(m[2]))), { headers: { "content-type": "application/json" } });
     },
   };
@@ -121,12 +121,18 @@ describe("the attempts routes", () => {
 
   it("refuses a bad section or exam, holds past the budget, and has no daily quota", async () => {
     expect((await call("/attempts", { body: { section: "xx", exam: 1 } })).status).toBe(400);
-    expect((await call("/attempts", { body: { section: "co", exam: 41 } })).status).toBe(400);
+    // shared/exams.ts: listening has 42 exams, reading 44
+    expect((await call("/attempts", { body: { section: "co", exam: 43 } })).status).toBe(400);
+    expect((await call("/attempts", { body: { section: "ce", exam: 45 } })).status).toBe(400);
+    expect((await start("co", 42)).status).toBe(201);
+    await call(`/attempts/1/finish`, { body: { ended: "done" } });
+    expect((await start("ce", 44)).status).toBe(201);
+    await call(`/attempts/2/finish`, { body: { ended: "done" } });
     expect((await call("/attempts", { body: { section: "co", exam: 0 } })).status).toBe(400);
     // no daily quota: someone may sit every exam in a day (the guard watches only what no person does)
     for (let i = 1; i <= 7; i++) {
       expect((await start("co", i)).status).toBe(201);
-      await call(`/attempts/${i}/finish`, { body: { ended: "done" } });
+      await call(`/attempts/${i + 2}/finish`, { body: { ended: "done" } });
     }
     raw.prepare("UPDATE budget SET writes = 50000").run();
     const held = await start("co", 8);

@@ -1,17 +1,32 @@
-// A CO / CE section: the head and the Examen | Entraînement tabs (the same as EE / EO), then either the 40 exam tiles
+// A CO / CE section: the head and the Examen | Entraînement tabs (the same as EE / EO), then either the exam tiles (shared/exams.ts)
 // (/co, the first tab) or the six levels (/co/practice) under a search field: two characters typed load the six level
 // files once and list up to twenty questions, each opening the room at that question (`?q=37`).
 import { cached } from "../../api-cache.ts";
 import { useEffect, useMemo, useState } from "react";
-import { Chip, ColourBar, Button, Empty, Icon, SectionHead, Sheet, Tabs, SECTION_NAME } from "../../../ui/ui.tsx";
+import { Chip, ColourBar, Button, Empty, Icon, SectionHead, Tabs, SECTION_NAME } from "../../../ui/ui.tsx";
 import { linkProps } from "../../../ui/router.ts";
 import type { Lang } from "../../i18n.ts";
 import { api } from "../../api.ts";
-import { LEVELS, POINTS, EXAM_COUNT, counts, loadLevel, record, useSection, type Level, type Question } from "./deps.ts";
+import { LEVELS, POINTS, EXAM_COUNT, counts, loadLevel, useSection, type Level, type Question } from "./deps.ts";
 import { WORDS } from "./words.ts";
 import { levelSize, useIndex } from "./practice.ts";
 import { searchQuestions, type Hit } from "./search.ts";
 import { isRunning, latestScore, EXAMS, type AttemptRow, type CoceSection } from "./shared.ts";
+import { isFresh, localDay } from "../../../../shared/exams.ts";
+import type { BankIndex } from "../bank.ts";
+
+/** what joined the bank less than 30 days ago (shared/exams.ts): the exam numbers, and the new questions per level */
+function freshOf(index: BankIndex | null | undefined, section: CoceSection) {
+  const day = localDay();
+  const exams = new Set<number>();
+  const levels: Partial<Record<Level, number>> = {};
+  for (const b of index?.added ?? []) {
+    if (!isFresh(b.day, day)) continue;
+    for (const n of b.exams?.[section] ?? []) exams.add(n);
+    for (const [lv, n] of Object.entries(b.levels?.[section] ?? {})) levels[lv as Level] = (levels[lv as Level] ?? 0) + (n ?? 0);
+  }
+  return { exams, levels };
+}
 
 export type SectionPageProps = {
   section: CoceSection;
@@ -47,8 +62,7 @@ function Practice({ section, lang }: { section: CoceSection; lang: Lang }) {
   const w = WORDS[lang];
   const { levels } = useSection(section);
   const index = useIndex();
-  // « Recommencer »: the level whose confirmation is open
-  const [restart, setRestart] = useState<Level | null>(null);
+  const fresh = freshOf(index, section);
 
   if (!levels || index === undefined) {
     return <div className="cp-levels" aria-busy="true">{LEVELS.map((l) => <div key={l} className="skeleton cp-skel-row" />)}</div>;
@@ -62,11 +76,11 @@ function Practice({ section, lang }: { section: CoceSection; lang: Lang }) {
           const c = counts(levels[level], n);
           return (
             <li key={level} className="card cp-level">
-              <span className="cp-level-name">{level}</span>
+              <span className="cp-level-name" data-fresh={fresh.levels[level] ? "" : undefined}>{level}</span>
               <span className="cp-level-meta">
-                <strong className="desk-only">{w.questions(n)}</strong>
+                <strong className="desk-only">{w.questions(n)}{!!fresh.levels[level] && <span className="cp-level-new">{w.addedN(fresh.levels[level]!)}</span>}</strong>
                 <span className="muted small desk-only">{w.levelWorth(POINTS[level], EXAM_COUNT[level], POINTS[level] * EXAM_COUNT[level])}</span>
-                <span className="cp-level-m mob-only num"><span>{w.seenOf(c.green + c.amber + c.red, n)}</span><span>{w.pts(POINTS[level])}</span></span>
+                <span className="cp-level-m mob-only num"><span>{w.seenOf(c.green + c.amber + c.red, n)}</span>{!!fresh.levels[level] && <span className="cp-level-new" title={w.addedN(fresh.levels[level]!)} aria-label={w.addedN(fresh.levels[level]!)}>+{fresh.levels[level]}</span>}<span>{w.pts(POINTS[level])}</span></span>
               </span>
               <span className="cp-bar">
                 <ColourBar ok={c.green} amber={c.amber} bad={c.red} total={n} />
@@ -78,7 +92,6 @@ function Practice({ section, lang }: { section: CoceSection; lang: Lang }) {
                 </span>
               </span>
               <span className="cp-open cp-acts">
-                {c.grey < n && <button type="button" className="btn sm quiet cp-restart" aria-label={w.restartLevel(level)} title={w.restart} onClick={() => setRestart(level)}><Icon name="refresh" size={16} /><span className="desk-only">{w.restart}</span></button>}
                 <a className="btn sm" aria-label={w.open} {...linkProps(`/${section}/practice/${level}`)}><span className="desk-only">{w.open}</span><Icon name="chevronRight" size={18} className="mob-only" /></a>
               </span>
             </li>
@@ -91,10 +104,6 @@ function Practice({ section, lang }: { section: CoceSection; lang: Lang }) {
         <span><i className="cp-dot bad" />{w.legend.red}</span>
         <span><i className="cp-dot amber" />{w.legend.amber}</span>
       </p>
-      <Sheet open={restart !== null} title={restart ? w.restartLevel(restart) : ""} onClose={() => setRestart(null)}
-        actions={<><Button onClick={() => setRestart(null)}>{w.cancel}</Button><Button kind="danger" onClick={() => { if (restart) record.resetLevel(section, restart); setRestart(null); }}>{w.restart}</Button></>}>
-        <p>{w.restartBody}</p>
-      </Sheet>
     </>
   );
 }
@@ -144,7 +153,7 @@ function Search({ section, lang }: { section: CoceSection; lang: Lang }) {
   );
 }
 
-/* ---------- Examen: 40 tiles, each with its latest score ---------- */
+/* ---------- Examen: one tile an exam, each with its latest score ---------- */
 
 function Exams({ section, lang }: { section: CoceSection; lang: Lang }) {
   const w = WORDS[lang];
@@ -162,8 +171,10 @@ function Exams({ section, lang }: { section: CoceSection; lang: Lang }) {
     for (const a of rows ?? []) { if (a.section !== section) continue; const l = m.get(a.exam) ?? []; l.push(a); m.set(a.exam, l); }
     return m;
   }, [rows, section]);
+  const index = useIndex();
+  const fresh = freshOf(index, section);
   const runningExam = (rows ?? []).find(isRunning)?.exam ?? null;
-  const order = useMemo(() => { const all = Array.from({ length: EXAMS }, (_, i) => i + 1); return runningExam ? [runningExam, ...all.filter((n) => n !== runningExam)] : all; }, [runningExam]);
+  const order = useMemo(() => { const all = Array.from({ length: EXAMS[section] }, (_, i) => i + 1); return runningExam ? [runningExam, ...all.filter((n) => n !== runningExam)] : all; }, [runningExam, section]);
 
   return (
     <>
@@ -181,8 +192,9 @@ function Exams({ section, lang }: { section: CoceSection; lang: Lang }) {
             const band = s ? (s.nclc != null && s.nclc >= 7 ? "ok" : s.nclc != null && s.nclc >= 5 ? "amber" : "low") : undefined;
             return (
               <li key={n}>
-                <a className="card cp-exam" data-state={running ? "running" : done ? "done" : "new"} data-band={band} aria-label={`${w.examTitle(section, n)} · ${running ? w.running : done ? w.done : w.newExam}${s ? ` · ${s.score} / 699` : ""}`} {...linkProps(`/${section}/exam/${n}`)}>
+                <a className="card cp-exam" data-state={running ? "running" : done ? "done" : "new"} data-band={band} aria-label={`${w.examTitle(section, n)}${fresh.exams.has(n) ? ` · ${w.added}` : ""} · ${running ? w.running : done ? w.done : w.newExam}${s ? ` · ${s.score} / 699` : ""}`} {...linkProps(`/${section}/exam/${n}`)}>
                   <span className="cp-exam-no" aria-hidden="true">{n}</span>
+                  {fresh.exams.has(n) && <span className="cp-exam-added"><Chip tone="fresh">{w.added}</Chip></span>}
                   <Chip tone={running ? "amber" : done ? "ok" : "new"} dot={running}>{running ? w.running : done ? w.done : w.newExam}</Chip>
                   <span className="cp-exam-score" data-empty={s ? undefined : ""}>
                     <span className="cp-exam-n num">{s ? s.score : 0}</span><span className="cp-exam-of num">/ 699</span>

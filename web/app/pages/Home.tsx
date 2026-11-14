@@ -3,6 +3,7 @@
 // how it stands against the goal, a small trend line and one line of facts (a test never touched shows the same card
 // with dashes and says so), then the donation card. "Current" and "typical" are medians, so one odd day does not
 // move them.
+import { MessagesCard } from "./Messages.tsx";
 import { peek, cached, isFresh } from "../api-cache.ts";
 import { flush, pendingCount } from "../coce/store.ts";
 import { useEffect, useState } from "react";
@@ -79,6 +80,8 @@ function Hello() {
         </div>
         {hasDate && <div className="home-hello-m-days"><b className="num">{n}</b><span>{n === 1 ? h.dayWord1 : h.dayWord}</span></div>}
       </div>
+      {/* an answer from the team waits: under the greeting, before the figures */}
+      <MessagesCard />
     </>
   );
 }

@@ -12,7 +12,10 @@ or `web/app/sim/`.
   (fluency measured in code, pronunciation heard by a model), the rewrite after the result (writing, 6 versions).
 - **The examiner** (`worker/sim/oral.ts`, `interview.ts`, `roleplay.ts`, `timing.ts`, `oral-lines.ts`): one live
   Gemini session per task, the clock rules, the follow-up planner, the Tâche 2 person who answers short, the
-  reconnection after a cut.
+  reconnection after a cut. Tâche 2 opens a fresh connection 20 s before its preparation ends (the one that read the
+  situation sat silent two minutes; kept as the fallback). A connection that gets nothing at all back from Google —
+  after her opening line, or 12 s after the candidate's turn — is taken as cut (`LiveExaminer.unanswered` / `drop`)
+  and reopened where it stopped, like any other cut (`tests/sim/live-silence.test.ts`).
 - **The browser side** (`web/app/sim/`): the live examiner (one WebSocket, 16 kHz PCM in, 24 kHz out, the turn ended
   here; its microphone capture is the AudioWorklet in `public/worklets/capture.js`, a static file — the page's
   Content-Security-Policy allows scripts from this site only, so a blob: URL was refused on the live site, 2026-10-18;

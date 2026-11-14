@@ -4,6 +4,7 @@
 import { type Env, json, day } from "./util.ts";
 import type { Me } from "./auth.ts";
 import { mockStats } from "./mock/index.ts";
+import { MERGED } from "../shared/progress.ts";
 
 export type SectionStat = {
   n: number; best: number | null; worst: number | null; typical: number | null; current: number | null;
@@ -106,7 +107,7 @@ export async function handleStats(env: Env, me: Me): Promise<Response> {
     const c = (colours[r.section][r.level] ??= { green: 0, red: 0, amber: 0 });
     let blob: { q?: Record<string, { s?: string }> } = {};
     try { blob = JSON.parse(r.data); } catch { /* empty */ }
-    for (const v of Object.values(blob.q ?? {})) if (v && (v.s === "green" || v.s === "red" || v.s === "amber")) c[v.s]++;
+    for (const [k, v] of Object.entries(blob.q ?? {})) if (!MERGED[k] && v && (v.s === "green" || v.s === "red" || v.s === "amber")) c[v.s]++;
   }
   const exams: Stats["exams"] = { co: { taken: 0, distinct: 0, best: null, last: null }, ce: { taken: 0, distinct: 0, best: null, last: null } };
   const seen: Record<string, Set<number>> = { co: new Set(), ce: new Set() };

@@ -47,8 +47,8 @@ describe("starting", () => {
     expect(qa.count("SELECT COUNT(*) n FROM attempts")).toBe(12);
   });
 
-  it("exam 0, 41, 'abc', 1.5, true-as-1, a missing section, mode tampering: 400 and no row", async () => {
-    for (const body of [{ section: "co", exam: 0 }, { section: "co", exam: 41 }, { section: "co", exam: "abc" }, { section: "co", exam: 1.5 }, { section: "co", exam: null }, { exam: 3 }, { section: "CO", exam: 3 }, { section: "co", exam: 3, mode: "free" }, { section: "co", exam: 3, mode: 1 }, { section: "co", exam: 3, mode: ["exam"] }])
+  it("exam 0, 43 (co has 42), 'abc', 1.5, true-as-1, a missing section, mode tampering: 400 and no row", async () => {
+    for (const body of [{ section: "co", exam: 0 }, { section: "co", exam: 43 }, { section: "ce", exam: 45 }, { section: "co", exam: "abc" }, { section: "co", exam: 1.5 }, { section: "co", exam: null }, { exam: 3 }, { section: "CO", exam: 3 }, { section: "co", exam: 3, mode: "free" }, { section: "co", exam: 3, mode: 1 }, { section: "co", exam: 3, mode: ["exam"] }])
       expect((await qa.call("/api/attempts", { body, cookie })).status, JSON.stringify(body)).toBe(400);
     for (const raw of ["[]", "\"x\"", "null", "{"]) expect((await qa.call("/api/attempts", { raw, headers: { "content-type": "application/json" }, cookie })).status, raw).toBe(400);
     expect(qa.count("SELECT COUNT(*) n FROM attempts")).toBe(0);

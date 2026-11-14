@@ -110,6 +110,8 @@ export class LiveExaminer {
   private sayWaiters = new Set<() => void>();
   private lastPrompt = 0;
   private lastSay = 0;
+  /** the last message of any kind from Google (a socket that went dead without closing sends nothing) */
+  private lastHeardAt = 0;
 
   private h: LiveHandlers;
 
@@ -249,6 +251,15 @@ export class LiveExaminer {
   get isClosed() {
     return this.closed;
   }
+  /** a turn was handed to her (a line to say, the candidate's turn closed) `ms` ago or more and Google has sent
+   *  nothing at all since: no voice, no transcription, no end of turn. A live socket always answers something. */
+  unanswered(ms: number) {
+    return this.lastPrompt > 0 && this.lastHeardAt < this.lastPrompt && performance.now() - this.lastPrompt >= ms;
+  }
+  /** the connection is given up as dead: closed, and the runner told as for any cut (it reopens and goes on) */
+  drop(reason: string) {
+    this.fail(reason);
+  }
   /** what Google has heard of the candidate's current turn (kept for a reconnection) */
   get heardSoFar() {
     return this.heard.trim();
@@ -368,6 +379,7 @@ export class LiveExaminer {
   }
 
   private onMessage(msg: Record<string, unknown>) {
+    this.lastHeardAt = performance.now();
     const sr = msg.sessionResumptionUpdate as { newHandle?: string; resumable?: boolean } | undefined;
     if (sr?.resumable && sr.newHandle) this.resumeHandle = sr.newHandle;
     const ga = msg.goAway as { timeLeft?: string } | undefined;

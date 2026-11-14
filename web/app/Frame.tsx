@@ -10,6 +10,20 @@ import { BetaTag, Icon, Wordmark, type Section } from "../ui/ui.tsx";
 import { linkProps, useLocation } from "../ui/router.ts";
 import { useT, type Lang } from "./i18n.ts";
 import { useMe, useTheme } from "./main.tsx";
+import { freshSections, loadIndex, type Section as BankSection } from "./coce/bank.ts";
+import { localDay } from "../../shared/exams.ts";
+
+/** CO / CE when something was added to them less than 30 days ago (the bank's index, read once a visit) */
+function useFresh(signedIn: boolean) {
+  const [fresh, setFresh] = useState<Set<BankSection>>(() => new Set());
+  useEffect(() => {
+    if (!signedIn) return;
+    let live = true;
+    loadIndex().then((i) => live && setFresh(freshSections(i, localDay()))).catch(() => { /* no dot */ });
+    return () => { live = false; };
+  }, [signedIn]);
+  return fresh;
+}
 
 const SECTIONS: Section[] = ["co", "ce", "ee", "eo"];
 /** the two languages, in the order the open pill shows them (EN at the top / left, FR under / right of it) */
@@ -29,7 +43,7 @@ function Avatar({ name }: { name: string | null }) {
  * small menu under it with three rows — the language (EN | FR), the theme (sun | moon), Réglages. The same settings
  * the rail carries on a laptop. It closes on a tap outside, on Escape, and when a row leads somewhere.
  */
-function AvatarMenu({ name, here }: { name: string | null; here: string }) {
+function AvatarMenu({ name, here, unread }: { name: string | null; here: string; unread: number }) {
   const { t, lang, setLang } = useT();
   const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
@@ -45,7 +59,7 @@ function AvatarMenu({ name, here }: { name: string | null; here: string }) {
   const seg = (on: boolean) => (on ? "true" : "false");
   return (
     <div ref={box} className="avmenu-box">
-      <button type="button" className="avmenu-btn" aria-label={t.menu} aria-haspopup="menu" aria-expanded={open} data-here={here === "/profile" || undefined} onClick={() => setOpen((o) => !o)}>
+      <button type="button" className="avmenu-btn" aria-label={t.menu} aria-haspopup="menu" aria-expanded={open} data-here={here === "/profile" || undefined} data-fresh={unread ? "" : undefined} onClick={() => setOpen((o) => !o)}>
         <Avatar name={name} />
       </button>
       {open && (
@@ -63,6 +77,9 @@ function AvatarMenu({ name, here }: { name: string | null; here: string }) {
               <button type="button" role="radio" aria-checked={seg(theme === "dark")} aria-label={t.darkMode} onClick={() => setTheme("dark")}><Icon name="moon" size={15} /></button>
             </span>
           </div>
+          <a className="avmenu-row avmenu-link" role="menuitem" {...linkProps("/messages")} onClick={(e) => { setOpen(false); linkProps("/messages").onClick?.(e); }} data-fresh={unread ? "" : undefined}>
+            <span>{t.messages}{unread ? <b className="avmenu-new"> · {t.messagesNew}</b> : null}</span><Icon name="chevronRight" size={18} />
+          </a>
           <a className="avmenu-row avmenu-link" role="menuitem" {...linkProps("/profile")} onClick={(e) => { setOpen(false); linkProps("/profile").onClick?.(e); }}>
             <span>{t.settings}</span><Icon name="chevronRight" size={18} />
           </a>
@@ -138,9 +155,9 @@ export function ThemeSwitch({ tabIndex }: { tabIndex?: number }) {
   );
 }
 
-function TabLink({ s, here, label }: { s: Section; here: string; label: string }) {
+function TabLink({ s, here, label, fresh }: { s: Section; here: string; label: string; fresh?: boolean }) {
   return (
-    <a {...linkProps(`/${s}`)} aria-current={here === `/${s}` ? "page" : undefined} aria-label={label}>
+    <a {...linkProps(`/${s}`)} aria-current={here === `/${s}` ? "page" : undefined} aria-label={label} data-fresh={fresh ? "" : undefined}>
       <Icon name={s} size={22} /><span className="code">{s.toUpperCase()}</span>
     </a>
   );
@@ -152,6 +169,8 @@ export function Frame({ children, mode = "app", band }: { children: ReactNode; m
   const { t, lang } = useT();
   const here = "/" + (path.split("/")[1] ?? "");
   const tab = mode === "exam" ? -1 : undefined;
+  const fresh = useFresh(!!me);
+  const unread = me?.unread ?? 0;
 
   return (
     <div className={`frame mode-${mode}`}>
@@ -168,7 +187,7 @@ export function Frame({ children, mode = "app", band }: { children: ReactNode; m
         </div>
         <div className="rail-group">
           {SECTIONS.map((s) => (
-            <a key={s} className="rail-item" {...linkProps(`/${s}`)} aria-current={here === `/${s}` ? "page" : undefined} title={t.sectionNames[s]} aria-label={t.sectionNames[s]} tabIndex={tab}>
+            <a key={s} className="rail-item" {...linkProps(`/${s}`)} aria-current={here === `/${s}` ? "page" : undefined} title={t.sectionNames[s]} aria-label={t.sectionNames[s]} tabIndex={tab} data-fresh={fresh.has(s as BankSection) ? "" : undefined}>
               <Icon name={s} size={22} />
               <span className="rail-code">{s.toUpperCase()}</span>
             </a>
@@ -178,6 +197,11 @@ export function Frame({ children, mode = "app", band }: { children: ReactNode; m
           <a className="rail-item" {...linkProps("/mock")} aria-current={here === "/mock" ? "page" : undefined} title={t.mockExam} aria-label={t.mockExam} tabIndex={tab}>
             <Icon name="mock" size={22} />
             <span className="rail-code rail-code-sm">{t.mockCode}</span>
+          </a>
+        </div>
+        <div className="rail-group">
+          <a className="rail-item" {...linkProps("/messages")} aria-current={here === "/messages" ? "page" : undefined} title={unread ? `${t.messages} · ${t.messagesNew}` : t.messages} aria-label={unread ? `${t.messages} · ${t.messagesNew}` : t.messages} tabIndex={tab} data-fresh={unread ? "" : undefined}>
+            <Icon name="chat" size={22} />
           </a>
         </div>
         <span className="spacer" />
@@ -191,7 +215,7 @@ export function Frame({ children, mode = "app", band }: { children: ReactNode; m
       <header className="topbar">
         <a className="brand" href="/about" aria-label={t.aboutSite}><img className="logo" src="/app-icon.svg" alt="" width="30" height="30" /><Wordmark /><BetaTag lang={lang} /></a>
         <span className="spacer" />
-        <AvatarMenu name={me?.name ?? null} here={here} />
+        <AvatarMenu name={me?.name ?? null} here={here} unread={unread} />
       </header>
 
       <div className="frame-main">
@@ -202,7 +226,7 @@ export function Frame({ children, mode = "app", band }: { children: ReactNode; m
       </div>
 
       <nav className="tabbar" aria-label="Sections">
-        {SECTIONS.slice(0, 2).map((s) => <TabLink key={s} s={s} here={here} label={t.sectionNames[s]} />)}
+        {SECTIONS.slice(0, 2).map((s) => <TabLink key={s} s={s} here={here} label={t.sectionNames[s]} fresh={fresh.has(s as BankSection)} />)}
         <a className="tab-home" {...linkProps("/")} aria-current={here === "/" ? "page" : undefined} aria-label={t.home}><span className="tab-home-dot"><img src="/app-icon.svg" alt="" width="44" height="44" /></span></a>
         {SECTIONS.slice(2).map((s) => <TabLink key={s} s={s} here={here} label={t.sectionNames[s]} />)}
       </nav>

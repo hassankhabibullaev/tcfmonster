@@ -15,6 +15,7 @@ import { handleDonate } from "./donate.ts";
 import { handleProgress, handleSync } from "./coce/progress.ts";
 import { handleAttempts } from "./coce/attempts.ts";
 import { handleDisputes } from "./coce/disputes.ts";
+import { handleMessages } from "./messages.ts";
 import { handleData } from "./coce/guard.ts";
 import { guardRequest, quietHeaders, trapped, TRAPS } from "./guard.ts";
 import { handleExpr, handleKey } from "./expr.ts";
@@ -102,7 +103,7 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   if (door(url.hostname) !== "app") return fail(404, "not found");
   if (path === "/mail/stop") return handleStop(req, env, url);
   if (path.startsWith("/auth/")) return handleAuth(req, env, path);
-  if (path === "/me" || path.startsWith("/me/") || path.startsWith("/expr/") || path === "/topics" || path === "/progress" || path === "/sync" || path === "/disputes" || path === "/attempts" || path.startsWith("/attempts/") || path === "/mock" || path.startsWith("/mock/")) {
+  if (path === "/me" || path.startsWith("/me/") || path.startsWith("/expr/") || path === "/topics" || path === "/progress" || path === "/sync" || path === "/disputes" || path === "/messages" || path === "/messages/read" || path === "/attempts" || path.startsWith("/attempts/") || path === "/mock" || path.startsWith("/mock/")) {
     const me = await currentUser(env, req);
     if (!me) return fail(401, "signed out");
     // pace and volume far beyond a person: the human check, then a block (worker/guard.ts)
@@ -137,6 +138,7 @@ async function signedIn(req: Request, env: Env, url: URL, path: string, me: Me):
   if (path === "/topics") return handleTopics(req, env, url);
   if (path === "/progress") return handleProgress(req, env, me, url);
   if (path === "/disputes") return handleDisputes(req, env, me, url);
+  if (path === "/messages" || path === "/messages/read") return handleMessages(req, env, me, path);
   if (path === "/attempts" || path.startsWith("/attempts/")) return handleAttempts(req, env, me, path, url);
   if (path === "/me/key") return handleKey(req, env, me);
   if (path === "/me/stats" && req.method === "GET") return handleStats(env, me);

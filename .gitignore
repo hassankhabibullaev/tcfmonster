@@ -5,3 +5,6 @@ dist/
 .DS_Store
 public/data/
 .dev/
+
+# rendered promo films (scripts/promo-render.mjs makes them again)
+brand/promo/*.mp4
