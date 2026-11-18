@@ -204,7 +204,7 @@ function ExprStage({ mock, stage, hooks }: {
     const sid = stage === "ee" ? mock.eeSessionId : mock.eoSessionId;
     const [state, setState] = useState<{
         s: StartedSession;
-        startedAtMs: number;
+        sessionStartedAt: string;
     } | null | undefined>(undefined);
     const [tries, setTries] = useState(0);
     useEffect(() => {
@@ -214,16 +214,17 @@ function ExprStage({ mock, stage, hooks }: {
             return;
         }
         setState(undefined);
-        loadSession(sid).then((d) => live && setState({ s: rebuildStarted(d), startedAtMs: Date.parse(mock.stageStartedAt ?? d.session.startedAt) })).catch(() => live && setState(null));
+        loadSession(sid).then((d) => live && setState({ s: rebuildStarted(d), sessionStartedAt: d.session.startedAt })).catch(() => live && setState(null));
         return () => { live = false; };
-    }, [sid, mock.stageStartedAt, tries]);
+    }, [sid, tries]);
     if (state === undefined)
         return <div className="boot" aria-busy="true"/>;
     if (state === null)
         return <div className="section-page room-missing"><Empty icon={stage} title={w.failed}><Button size="sm" icon="refresh" onClick={() => setTries((n) => n + 1)}>{w.retry}</Button></Empty></div>;
     const exit = () => hooks.onStageEnd("done");
+    const startedAtMs = Date.parse(mock.stageStartedAt ?? state.sessionStartedAt);
     return stage === "ee"
-        ? <EcritRunner session={state.s} startedAtMs={state.startedAtMs} kind="exam" lang={lang} onExit={exit} mock={hooks}/>
-        : <OralRunner session={state.s} startedAtMs={state.startedAtMs} kind="exam" micMode={mock.micMode ?? (state.s.micMode ?? "live")} lang={lang} onExit={exit} mock={hooks}/>;
+        ? <EcritRunner session={state.s} startedAtMs={startedAtMs} kind="exam" lang={lang} onExit={exit} mock={hooks}/>
+        : <OralRunner session={state.s} startedAtMs={startedAtMs} kind="exam" micMode={mock.micMode ?? (state.s.micMode ?? "live")} lang={lang} onExit={exit} mock={hooks}/>;
 }
 export { testAfter };

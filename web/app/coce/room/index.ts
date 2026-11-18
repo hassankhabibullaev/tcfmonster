@@ -3,7 +3,7 @@ export { PracticeRoom, type PracticeRoomProps, type Help } from "./PracticeRoom.
 export { ExamRoom, type ExamRoomProps } from "./ExamRoom.tsx";
 export { Player, type PlayerProps, type PlayerHandle } from "./Player.tsx";
 export { Transcript, type TranscriptProps } from "./Transcript.tsx";
-export { Passage, Paper, Hint, Panel, PanelBar, hintNodes, type PassageProps, type PanelProps } from "./Passage.tsx";
+export { Passage, Paper, Hint, Caution, Panel, PanelBar, hintNodes, type PassageProps, type PanelProps } from "./Passage.tsx";
 export { Options, type OptionsProps } from "./Options.tsx";
 export { Feedback, type FeedbackProps } from "./Feedback.tsx";
 export { Picker, Legend, type PickerProps, type PickTone } from "./Picker.tsx";

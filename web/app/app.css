@@ -181,6 +181,7 @@ select.pinput { cursor: pointer; }
 .setup-title { font-family: var(--font-display); font-weight: 700; font-size: 30px; letter-spacing: -0.02em; line-height: 1.1; }
 .setup-brand { font-size: 17px; }
 .setup-block { display: flex; flex-direction: column; gap: 14px; }
+.setup-timer .pick b { display: inline-flex; align-items: center; gap: 6px; }
 
 .setup-tasks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
 .setup-task { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; border-width: var(--border-strong); transition: border-color var(--duration-quick), background var(--duration-quick), box-shadow var(--duration-quick); }
@@ -424,7 +425,8 @@ select.pinput { cursor: pointer; }
   .setup-title { font-size: 20px; }
   .setup-sub { font-size: 12px; font-weight: 700; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .setup-sub b { color: var(--accent); }
-  .setup-mic.card { order: -1; border: 0; padding: 0; background: none; box-shadow: none; }
+  .setup-mic.card, .setup-timer.card { order: -1; border: 0; padding: 0; background: none; box-shadow: none; }
+  .setup-timer .pick span { display: none; }
   .setup-mic-picks { display: flex; gap: 0; padding: 3px; border: 1.5px solid var(--line); border-radius: var(--radius-pill); background: var(--surface); }
   .setup-mic-picks .pick { flex: 1; min-width: 0; align-items: center; padding: 8px 0; border: 0; box-shadow: none; border-radius: var(--radius-pill); background: none; }
   .setup-mic-picks .pick b { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-muted); white-space: nowrap; }

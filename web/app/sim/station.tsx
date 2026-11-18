@@ -26,13 +26,14 @@ export function useLeaveGuard(active: boolean) {
         };
     }, [active]);
 }
+const fmt = (sec: number) => { const n = Math.max(0, Math.floor(sec)); return `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`; };
 export type Step = {
     taskNo: number;
     done: boolean;
     active: boolean;
     words?: number;
 };
-export function Station({ skill, steps, onSelect, secondsLeft, running = true, warnUnder = 20, blinkUnder = 10, children, foot, lang, sub }: {
+export function Station({ skill, steps, onSelect, secondsLeft, running = true, warnUnder = 20, blinkUnder = 10, children, foot, lang, sub, untimed = false }: {
     skill: "writing" | "speaking";
     steps: Step[];
     onSelect?: (index: number) => void;
@@ -44,6 +45,7 @@ export function Station({ skill, steps, onSelect, secondsLeft, running = true, w
     foot?: ReactNode;
     lang: Lang;
     sub?: string;
+    untimed?: boolean;
 }) {
     const w = useSimWords(lang);
     const shown = secondsLeft ?? 0;
@@ -62,7 +64,7 @@ export function Station({ skill, steps, onSelect, secondsLeft, running = true, w
         })}
           </ol>);
     return (<div className="room" data-skill={skill} data-foot={foot ? "" : undefined} data-mock={sub ? "" : undefined}>
-      <RoomBar lang={lang} time steps={stepsList} left={<><span className="room-name sim-caps">{skill === "writing" ? w.ee : w.eo}{sub && <span className="room-sub num">{sub}</span>}</span><span className="room-code mob-only num">{skill === "writing" ? "EE" : "EO"}{sub && <span className="room-sub num">{sub}</span>}</span></>} clock={{ secondsLeft: Math.round(shown), idle: !live, warnUnder, blinkUnder, label: live && shown <= 0 ? w.timeUp : w.timeLeft }}/>
+      <RoomBar lang={lang} time steps={stepsList} left={<><span className="room-name sim-caps">{skill === "writing" ? w.ee : w.eo}{sub && <span className="room-sub num">{sub}</span>}</span><span className="room-code mob-only num">{skill === "writing" ? "EE" : "EO"}{sub && <span className="room-sub num">{sub}</span>}</span></>} right={untimed ? <span className="room-untimed" title={w.timeSpent}><Icon name="pause" size={14}/>{w.untimed}<span className="room-untimed-n num" aria-label={w.timeSpent}>{fmt(shown)}</span></span> : undefined} clock={untimed ? null : { secondsLeft: Math.round(shown), idle: !live, warnUnder, blinkUnder, label: live && shown <= 0 ? w.timeUp : w.timeLeft }}/>
       {children}
       {foot && <div className="room-foot">{foot}</div>}
       <span className="room-powered"><MonsterAI powered lang={lang}/></span>

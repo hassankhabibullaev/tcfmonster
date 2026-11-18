@@ -26,7 +26,34 @@ export function explainFailure(e: unknown, lang: "fr" | "en" = "fr"): Failure {
                 : "Google refuses your Gemini key. Your work is saved: replace the key in your profile, then retry.",
         };
     }
-    const google = code === "overloaded" || code === "rate_limited" || code === "model_missing";
+    if (code === "no_key") {
+        return {
+            google: false, key: true, retryInS: 600,
+            message: lang === "fr"
+                ? "Aucune clé Gemini sur cet appareil. Votre travail est enregistré : ajoutez votre clé dans le profil, puis réessayez."
+                : "No Gemini key on this device. Your work is saved: add your key in your profile, then retry.",
+        };
+    }
+    if (code === "rate_limited") {
+        const m = MIN(retryInS);
+        return {
+            google: true,
+            retryInS,
+            message: lang === "fr"
+                ? `Le quota gratuit de votre clé Gemini est atteint pour le moment. Votre travail est enregistré : la correction sera relancée dans ${m} minute${m > 1 ? "s" : ""}, ou tout de suite si vous le demandez.`
+                : `Your Gemini key's free quota is used up for now. Your work is saved: the marking will be tried again in ${m} minute${m > 1 ? "s" : ""}, or right away if you ask.`,
+        };
+    }
+    if (code === "model_missing") {
+        return {
+            google: true,
+            retryInS,
+            message: lang === "fr"
+                ? "Le modèle Gemini prévu ne répond pas pour votre clé en ce moment. Votre travail est enregistré : la correction sera relancée plus tard, ou tout de suite si vous le demandez."
+                : "The planned Gemini model does not answer for your key right now. Your work is saved: the marking will be tried again later, or right away if you ask.",
+        };
+    }
+    const google = code === "overloaded";
     if (google) {
         const m = MIN(retryInS);
         return {

@@ -36,6 +36,10 @@ export type Question = {
         fr: string;
         en: string;
     } | null;
+    caution: {
+        fr: string;
+        en: string;
+    } | null;
     keySentence: string | null;
     keySentenceEn: string | null;
     explanation: string | null;

@@ -77,6 +77,10 @@
 
 .cr-hint .cr-paper { font-family: var(--font-sans); font-size: 15px; line-height: 1.5; gap: 6px; padding: 16px 20px; background: var(--surface-2); border-color: var(--line); }
 
+.cr-caution { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border: 1px solid var(--amber); border-radius: var(--radius-md); background: var(--amber-soft); font-size: 14px; line-height: 1.45; }
+.cr-caution svg { flex: none; margin-top: 1px; color: var(--amber); }
+.cr-caution p { margin: 0; }
+
 .cr-hint-note { font-size: 12px; font-weight: 600; color: var(--ink-muted); }
 .cr-hint { gap: 6px; }
 .cr-hint ul { padding-left: 18px; list-style: disc; display: flex; flex-direction: column; gap: 4px; }

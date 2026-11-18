@@ -52,14 +52,31 @@ export function loadStarted(id: string): {
         return null;
     }
 }
+const untimedKey = (id: string) => `tcfm-untimed-${id}`;
+export function isUntimed(id: string): boolean {
+    try {
+        return localStorage.getItem(untimedKey(id)) === "1";
+    }
+    catch {
+        return false;
+    }
+}
 export async function startExpr(o: {
     section: Section;
     kind: Kind;
     taches: TaskNo[];
     topicIds?: Partial<Record<TaskNo, number>>;
     mode?: MicMode | null;
+    untimed?: boolean;
 }) {
-    const s = await api<StartedSession>("/expr/start", o);
+    const { untimed, ...body } = o;
+    const s = await api<StartedSession>("/expr/start", body);
+    if (untimed && o.section === "ee") {
+        try {
+            localStorage.setItem(untimedKey(s.sessionId), "1");
+        }
+        catch { }
+    }
     keepStarted(s, Date.now());
     return s;
 }

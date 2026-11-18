@@ -68,6 +68,9 @@ type ServerContent = {
         }[];
     };
 };
+export const CONNECT_DEADLINE_MS = 25000;
+export const SILENT_LINE_MS = 10000;
+const open = new Set<LiveExaminer>();
 export class BusyError extends Error {
     retryInS: number;
     constructor(message: string, retryInS: number) {
@@ -104,13 +107,49 @@ export class LiveExaminer {
     private sayWaiters = new Set<() => void>();
     private lastPrompt = 0;
     private lastSay = 0;
-    private lastHeardAt = 0;
+    private lastHeardAt = -Infinity;
+    private lastAudioAt = -Infinity;
+    private hushed = false;
     private h: LiveHandlers;
     private constructor(h: LiveHandlers, mode: MicMode) {
         this.h = h;
         this.mode = mode;
+        open.add(this);
     }
-    static async connect(sessionId: string, handlers: LiveHandlers, opts: ConnectOptions, timeoutMs = 12000): Promise<LiveExaminer> {
+    static connect(sessionId: string, handlers: LiveHandlers, opts: ConnectOptions, timeoutMs = 12000, deadlineMs = CONNECT_DEADLINE_MS): Promise<LiveExaminer> {
+        return new Promise((resolve, reject) => {
+            let late = false;
+            const timer = setTimeout(() => {
+                late = true;
+                reject(new Error("connexion trop lente"));
+            }, deadlineMs);
+            LiveExaminer.opening(sessionId, handlers, opts, timeoutMs).then((ex) => {
+                clearTimeout(timer);
+                if (late)
+                    ex.close();
+                else
+                    resolve(ex);
+            }, (e) => {
+                clearTimeout(timer);
+                if (!late)
+                    reject(e);
+            });
+        });
+    }
+    static closeAll() {
+        for (const ex of [...open])
+            ex.close();
+    }
+    static wake() {
+        for (const ex of open) {
+            if (ex.closed)
+                continue;
+            for (const ctx of [ex.inCtx, ex.outCtx])
+                if (ctx?.state === "suspended")
+                    void ctx.resume().catch(() => { });
+        }
+    }
+    private static async opening(sessionId: string, handlers: LiveHandlers, opts: ConnectOptions, timeoutMs: number): Promise<LiveExaminer> {
         const r = await fetch("/api/expr/oral/realtime", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId, taskNo: opts.taskNo, asked: askedHere() }) });
         const script = (await r.json().catch(() => ({}))) as {
             instructions?: string;
@@ -140,14 +179,23 @@ export class LiveExaminer {
         self.resumed = !!d.resumed;
         if (self.resumed)
             self.resumeHandle = opts.resumeHandle ?? null;
+        const gone = () => {
+            if (!self.closed)
+                return;
+            self.release();
+            throw new Error("fermée pendant l'ouverture");
+        };
         try {
             self.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+            gone();
             self.inCtx = new AudioContext({ sampleRate: IN_RATE });
             self.outCtx = new AudioContext({ sampleRate: OUT_RATE });
             self.dest = self.outCtx.createMediaStreamDestination();
             self.stream = self.dest.stream;
             await self.inCtx.audioWorklet.addModule(WORKLET_URL);
+            gone();
             await self.open(d.token, d.apiVersion ?? "v1alpha", d.model, timeoutMs);
+            gone();
             const src = self.inCtx.createMediaStreamSource(self.mic);
             const node = new AudioWorkletNode(self.inCtx, "capture");
             node.port.onmessage = (ev: MessageEvent<{
@@ -161,7 +209,10 @@ export class LiveExaminer {
             return self;
         }
         catch (e) {
-            self.close();
+            if (self.closed)
+                self.release();
+            else
+                self.close();
             throw e;
         }
     }
@@ -232,6 +283,13 @@ export class LiveExaminer {
         this.pressed = true;
         this.preRoll = [];
     }
+    get isPressed() {
+        return this.pressed;
+    }
+    resetPress() {
+        this.pressed = false;
+        this.preRoll = [];
+    }
     pressEnd() {
         this.pressed = false;
         this.endTurnIfOpen();
@@ -261,20 +319,43 @@ export class LiveExaminer {
     get heardSoFar() {
         return this.heard.trim();
     }
-    prompt(text: string, timeoutMs = 15000): Promise<void> {
+    prompt(text: string, timeoutMs = 15000): Promise<boolean> {
+        return this.ask(`Consigne de régie : ${text}`, timeoutMs, false);
+    }
+    private ask(text: string, timeoutMs: number, isLine: boolean): Promise<boolean> {
         if (this.closed || this.ws?.readyState !== WebSocket.OPEN)
-            return Promise.resolve();
-        return new Promise<void>((resolve) => {
+            return Promise.resolve(false);
+        this.claim();
+        return new Promise<boolean>((resolve) => {
+            const at = performance.now();
             const done = () => {
                 clearTimeout(timer);
+                clearTimeout(silent);
                 this.sayWaiters.delete(done);
-                resolve();
+                resolve(this.lastAudioAt >= at);
             };
             const timer = setTimeout(done, timeoutMs);
+            const silent = setTimeout(() => { if (this.lastHeardAt < at)
+                done(); }, Math.min(SILENT_LINE_MS, timeoutMs));
             this.sayWaiters.add(done);
-            this.lastPrompt = performance.now();
-            this.send({ clientContent: { turns: [{ role: "user", parts: [{ text: `Consigne de régie : ${text}` }] }], turnComplete: true } });
+            this.lastPrompt = at;
+            if (isLine)
+                this.lastSay = at;
+            this.send({ clientContent: { turns: [{ role: "user", parts: [{ text }] }], turnComplete: true } });
         });
+    }
+    private claim() {
+        this.hushed = false;
+        for (const o of open)
+            if (o !== this && !o.hushed)
+                o.hush();
+    }
+    private hush() {
+        this.hushed = true;
+        this.stopPlayback();
+    }
+    get isHushed() {
+        return this.hushed;
     }
     private endTurnIfOpen() {
         if (!this.streaming)
@@ -311,6 +392,10 @@ export class LiveExaminer {
             this.preRoll.push(pcm);
             if (this.preRoll.length > 15)
                 this.preRoll.shift();
+            if (this.mode === "ptt") {
+                this.startTurn();
+                return;
+            }
             if (loud) {
                 if (!this.loudSince)
                     this.loudSince = now;
@@ -336,24 +421,11 @@ export class LiveExaminer {
     private sendAudio(pcm: ArrayBuffer) {
         this.send({ realtimeInput: { audio: { data: b64(pcm), mimeType: `audio/pcm;rate=${IN_RATE}` } } });
     }
-    say(text: string, timeoutMs?: number): Promise<void> {
-        if (this.closed || this.ws?.readyState !== WebSocket.OPEN)
-            return Promise.resolve();
+    say(text: string, timeoutMs?: number): Promise<boolean> {
         timeoutMs ??= Math.max(15000, 6000 + text.length * 110);
-        return new Promise<void>((resolve) => {
-            const done = () => {
-                clearTimeout(timer);
-                this.sayWaiters.delete(done);
-                resolve();
-            };
-            const timer = setTimeout(done, timeoutMs);
-            this.sayWaiters.add(done);
-            this.lastPrompt = performance.now();
-            this.lastSay = performance.now();
-            this.send({ clientContent: { turns: [{ role: "user", parts: [{ text: `Consigne de régie : dis exactement ce texte, en français, d'une seule traite, sans pause entre les phrases, sans rien ajouter ni changer, sur le ton neutre de l'examinatrice : « ${text} »` }] }], turnComplete: true } });
-        });
+        return this.ask(`Consigne de régie : dis exactement ce texte, en français, d'une seule traite, sans pause entre les phrases, sans rien ajouter ni changer, sur le ton neutre de l'examinatrice : « ${text} »`, timeoutMs, true);
     }
-    sayNow(text: string, endTurn: boolean, timeoutMs?: number): Promise<void> {
+    sayNow(text: string, endTurn: boolean, timeoutMs?: number): Promise<boolean> {
         if (endTurn) {
             this.pressed = false;
             this.micOn = false;
@@ -401,7 +473,10 @@ export class LiveExaminer {
             if (!part.inlineData?.data)
                 continue;
             this.turnOpen = true;
-            if (!this.muteNext)
+            if (this.muteNext)
+                continue;
+            this.lastAudioAt = performance.now();
+            if (!this.hushed)
                 this.play(unb64(part.inlineData.data));
         }
         if (sc.turnComplete) {
@@ -427,6 +502,8 @@ export class LiveExaminer {
         const ctx = this.outCtx;
         if (!ctx || this.closed)
             return;
+        if (ctx.state === "suspended")
+            void ctx.resume().catch(() => { });
         const i16 = new Int16Array(pcm);
         const buf = ctx.createBuffer(1, i16.length, OUT_RATE);
         const ch = buf.getChannelData(0);
@@ -479,15 +556,21 @@ export class LiveExaminer {
         if (this.closed)
             return;
         this.closed = true;
+        open.delete(this);
         this.lineOver();
         this.stopPlayback();
+        this.release();
+    }
+    private release() {
         try {
-            this.ws?.close(1000, "done");
+            if (this.ws && this.ws.readyState !== WebSocket.CLOSED)
+                this.ws.close(1000, "done");
         }
         catch { }
         this.mic?.getTracks().forEach((t) => t.stop());
-        void this.inCtx?.close().catch(() => { });
-        void this.outCtx?.close().catch(() => { });
+        for (const ctx of [this.inCtx, this.outCtx])
+            if (ctx && ctx.state !== "closed")
+                void ctx.close().catch(() => { });
     }
     private fail(reason: string) {
         if (this.closed)

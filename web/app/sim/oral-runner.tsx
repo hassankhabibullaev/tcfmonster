@@ -5,7 +5,7 @@ import { useRecorder, type StopResult } from "./use-recorder";
 import { Station, useLeaveGuard } from "./station";
 import { SessionResults, type TaskView } from "./session-results";
 import { Interviewer, type Mood } from "./interviewer";
-import { LiveExaminer } from "./live-examiner";
+import { LiveExaminer, type LiveHandlers } from "./live-examiner";
 import { OutputLevel } from "./output-level";
 import { finishTask } from "./analysis";
 import { BusyOverlay } from "./busy-overlay";
@@ -17,6 +17,8 @@ import { StopDialog } from "./stop-dialog";
 import { Hallway } from "./hallway";
 import { Trouble } from "./trouble";
 import { useSimWords } from "./words";
+import { claimRoom } from "./one-room";
+import { replace } from "../../ui/router.ts";
 import type { Lang } from "../i18n";
 import type { MockHooks } from "../mock/shell.tsx";
 type Line = {
@@ -44,6 +46,13 @@ type Pending = Record<number, {
     durationS: number;
     failed?: boolean;
 }>;
+type Answer = {
+    taskNo: TaskNo;
+    clipId: string;
+    text?: string;
+    kept?: Promise<unknown>;
+};
+const PLAN_DEADLINE_MS = 20000;
 type Progress = {
     results: Record<number, TaskView>;
     summary: SessionSummary | null;
@@ -83,6 +92,7 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
     const [summary, setSummary] = useState<SessionSummary | null>(null);
     const [notes, setNotes] = useState("");
     const [micError, setMicError] = useState<string | null>(null);
+    const [elsewhere, setElsewhere] = useState(false);
     const [started, setStarted] = useState(false);
     const [trouble, setTrouble] = useState<{
         message: string;
@@ -132,13 +142,13 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         clockStart: 0,
         frozenMs: 0,
         frozenStart: 0,
+        holds: new Set<"sheet" | "cut">(),
         prepEnd: 0,
         segStart: 0,
         segCount: 0,
         seq: 0,
         pending: [] as Promise<unknown>[],
-        uploads: new Map<number, Promise<unknown>>(),
-        clipIds: new Map<number, string>(),
+        answer: null as Answer | null,
         lastUploadP: null as Promise<unknown> | null,
         stopRequested: false,
         stopRequestedByUser: false,
@@ -168,9 +178,14 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         nextTaskIdx: -1,
         nextPlanP: null as Promise<Plan> | null,
         rtNextP: null as Promise<LiveExaminer | null> | null,
+        disposed: false,
+        all: new Set<LiveExaminer>(),
+        releaseRoom: null as (() => void) | null,
+        runId: 0,
+        recovering: false,
     });
     const done = s.tasks.every((t) => results[t.taskNo] || pending[t.taskNo]) && (phase === "done" || phase === "idle" || !!summary);
-    useLeaveGuard(started && !done);
+    useLeaveGuard(started && !done && !elsewhere);
     const TROUBLE_WAITS = [4, 8, 12];
     function clearTrouble(reset = true) {
         const t = troubleRef.current;
@@ -200,7 +215,7 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         const wait = auto ? TROUBLE_WAITS[t.attempts] : null;
         setTrouble({ message, final: false, retryAt: wait ? Date.now() + wait * 1000 : null, retry, quit, link: opts.link });
         if (wait)
-            t.timer = setTimeout(() => { t.attempts += 1; t.timer = null; retry(); }, wait * 1000);
+            t.timer = setTimeout(() => { t.attempts += 1; t.timer = null; setTrouble(null); retry(); }, wait * 1000);
     }
     useEffect(() => {
         if (!trouble?.retryAt)
@@ -250,12 +265,19 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         const now = Date.now();
         return (now - st.clockStart - st.frozenMs - (st.frozenStart ? now - st.frozenStart : 0)) / 1000;
     };
-    const freeze = () => {
+    const freeze = (why: "sheet" | "cut") => {
+        R.current.holds.add(why);
         if (!R.current.frozenStart)
             R.current.frozenStart = Date.now();
     };
-    const unfreeze = () => {
+    const unfreeze = (why?: "sheet" | "cut") => {
         const st = R.current;
+        if (why)
+            st.holds.delete(why);
+        else
+            st.holds.clear();
+        if (st.holds.size)
+            return;
         if (st.frozenStart)
             st.frozenMs += Date.now() - st.frozenStart;
         st.frozenStart = 0;
@@ -314,17 +336,24 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         return () => { document.removeEventListener("visibilitychange", away); window.removeEventListener("pagehide", gone); void flushLog(); };
     }, [flushLog]);
     async function fetchPlan(taskNo: TaskNo): Promise<Plan> {
-        const r = await post("/oral/prepare", { sessionId: s.sessionId, taskNo, asked: askedHere() });
-        const plan = (await r.json()) as Plan & {
-            error?: string;
-        };
-        if (!r.ok)
-            throw new Error(plan.error ?? "préparation impossible");
-        return plan;
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), PLAN_DEADLINE_MS);
+        try {
+            const r = await fetch("/api/expr/oral/prepare", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: s.sessionId, taskNo, asked: askedHere() }), signal: ac.signal });
+            const plan = (await r.json()) as Plan & {
+                error?: string;
+            };
+            if (!r.ok)
+                throw new Error(plan.error ?? "préparation impossible");
+            return plan;
+        }
+        finally {
+            clearTimeout(timer);
+        }
     }
-    async function say(line: Line | null, log = false) {
+    async function say(line: Line | null, log = false): Promise<boolean> {
         if (!line)
-            return;
+            return false;
         const st = R.current;
         if (log)
             logLine(line.text);
@@ -332,24 +361,26 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         if (rt && !rt.isClosed && !st.stopRequested) {
             st.rt = rt;
             (voice.current ??= new OutputLevel()).attachStream(rt.stream);
-            await rt.say(line.text);
+            return rt.say(line.text);
         }
-        else {
-            setCaption(line.text);
-            await new Promise((r) => setTimeout(r, Math.min(6000, 1200 + line.text.length * 55)));
-            setCaption(null);
-        }
+        setCaption(line.text);
+        await new Promise((r) => setTimeout(r, Math.min(6000, 1200 + line.text.length * 55)));
+        setCaption(null);
+        return false;
     }
     useEffect(() => {
         const id = setInterval(() => {
             const st = R.current;
             const p = st.phase;
             if (p === "prep") {
+                if (st.holds.has("sheet"))
+                    return;
                 const l = Math.max(0, (st.prepEnd - Date.now()) / 1000);
                 setLeft(l);
                 if (!st.prepFresh && st.plan && l <= Math.min(PREP_FRESH_S, st.plan.timing.prepS / 2)) {
                     st.prepFresh = true;
                     st.prepOld = st.rt;
+                    retire(st.rtP);
                     st.rtP = rtConnect();
                 }
                 if (l <= 0)
@@ -391,7 +422,7 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
                 else
                     void rtListen();
             }
-            else if (p === "listening" && !st.busy && !st.spoke && segS >= t.idleRelanceS + 2)
+            else if (p === "listening" && !st.busy && !st.spoke && !st.rt.isPressed && segS >= t.idleRelanceS + 2)
                 void rtRelance();
             else if (st.plan!.taskNo === 1 && p === "listening" && !st.introDone && st.spoke && introCut(t, segS, silenceS))
                 st.rt.setMic(false);
@@ -400,14 +431,87 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         }, 200);
         return () => clearInterval(id);
     }, []);
-    useEffect(() => () => {
-        const st = R.current;
-        st.rt?.close();
-        void st.rtP?.then((x) => x?.close());
-        voice.current?.close();
-    }, []);
     useEffect(() => {
-        if (hall || started || !hydrated)
+        if (!started || done || elsewhere)
+            return;
+        type Lock = {
+            release: () => Promise<void>;
+        };
+        const wl = (navigator as Navigator & {
+            wakeLock?: {
+                request: (t: "screen") => Promise<Lock>;
+            };
+        }).wakeLock;
+        let lock: Lock | null = null;
+        let live = true;
+        const ask = () => { if (wl && document.visibilityState === "visible")
+            void wl.request("screen").then((l) => { if (live)
+                lock = l;
+            else
+                void l.release(); }, () => { }); };
+        const back = () => { if (document.visibilityState === "visible") {
+            LiveExaminer.wake();
+            ask();
+        } };
+        const touch = () => LiveExaminer.wake();
+        ask();
+        document.addEventListener("visibilitychange", back);
+        window.addEventListener("pointerdown", touch);
+        return () => {
+            live = false;
+            document.removeEventListener("visibilitychange", back);
+            window.removeEventListener("pointerdown", touch);
+            void lock?.release().catch(() => { });
+        };
+    }, [started, done, elsewhere]);
+    useEffect(() => {
+        const st = R.current;
+        st.disposed = false;
+        return () => hangUp();
+    }, []);
+    function hangUp() {
+        const st = R.current;
+        st.disposed = true;
+        st.stopRequested = true;
+        st.releaseRoom?.();
+        st.releaseRoom = null;
+        for (const ex of [st.rt, st.prepOld, ...st.all])
+            ex?.close();
+        st.all.clear();
+        for (const p of [st.rtP, st.rtNextP])
+            void p?.then((x) => x?.close());
+        LiveExaminer.closeAll();
+        st.rt = null;
+        st.prepOld = null;
+        voice.current?.close();
+        voice.current = null;
+    }
+    function retire(p: Promise<LiveExaminer | null> | null) {
+        void p?.then((x) => {
+            const st = R.current;
+            if (x && x !== st.rt && x !== st.prepOld)
+                x.close();
+        });
+    }
+    function takenElsewhere() {
+        const st = R.current;
+        const over = st.phase === "done";
+        hangUp();
+        if (over)
+            return;
+        clearTrouble();
+        setAsking(null);
+        setSpeaking(false);
+        setCaption(null);
+        if (st.recOn) {
+            st.recOn = false;
+            void rec.stop();
+        }
+        setElsewhere(true);
+    }
+    const mockWaiting = !!mock && mock.endsAt == null;
+    useEffect(() => {
+        if (hall || started || !hydrated || mockWaiting)
             return;
         setStarted(true);
         void (async () => {
@@ -447,14 +551,17 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
                 raiseTrouble(w.troublePrep, () => void startFrom(R.current.taskIdx), () => void abandon());
             }
         })();
-    }, [hall, hydrated]);
+    }, [hall, hydrated, mockWaiting]);
     async function startFrom(first: number) {
+        if (R.current.disposed)
+            return;
         R.current.taskIdx = first;
         if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
             setMicError(w.noRecorder);
             setPhaseBoth("idle");
             return;
         }
+        R.current.releaseRoom ??= claimRoom(takenElsewhere);
         const planP = fetchPlan(s.tasks[first].taskNo);
         void planP.catch(() => null);
         const rtP = rtConnect({}, s.tasks[first].taskNo);
@@ -470,13 +577,16 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         }
         await runTask(first, planP, rtP);
     }
-    async function runTask(i: number, planP?: Promise<Plan>, rtP?: Promise<LiveExaminer | null>, openingP?: Promise<void>) {
+    async function runTask(i: number, planP?: Promise<Plan>, rtP?: Promise<LiveExaminer | null>, openingP?: Promise<boolean>) {
         const t = s.tasks[i];
         const st = R.current;
         const prepared = st.nextTaskIdx === i;
         const preparedPlan = prepared ? st.nextPlanP : null;
         const preparedRt = prepared ? st.rtNextP : rtP ?? null;
-        Object.assign(st, { taskIdx: i, seq: 0, segCount: 0, pending: [], stopRequested: false, stopRequestedByUser: false, introDone: false, asked: 0, questionEndAt: 0, turnStartAt: 0, closing: false, lastUploadP: null, nextTaskIdx: -1, nextPlanP: null, rtNextP: null, clockStart: 0, frozenMs: 0, frozenStart: 0, lastCandidateText: "", lastExaminerLine: "" });
+        if (st.disposed)
+            return;
+        const run = ++st.runId;
+        Object.assign(st, { taskIdx: i, seq: 0, segCount: 0, pending: [], prepFresh: false, prepOld: null, stopRequested: false, stopRequestedByUser: false, introDone: false, asked: 0, questionEndAt: 0, turnStartAt: 0, closing: false, lastUploadP: null, nextTaskIdx: -1, nextPlanP: null, rtNextP: null, clockStart: 0, frozenMs: 0, frozenStart: 0, holds: new Set(), lastCandidateText: "", lastExaminerLine: "" });
         setIdx(i);
         setNotes("");
         setQuestionOpen(false);
@@ -488,10 +598,13 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         }
         catch {
             await interP;
+            retire(preparedRt);
             setPhaseBoth("idle");
             raiseTrouble(w.troublePrep, () => void runTask(i), () => void abandon());
             return;
         }
+        if (st.disposed || run !== st.runId)
+            return;
         st.plan = plan;
         st.rt = null;
         st.rtFail = null;
@@ -499,25 +612,35 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         if (!openingP)
             await Promise.race([st.rtP, new Promise((r) => setTimeout(r, 9000))]);
         await interP;
-        if (st.stopRequested)
+        if (st.stopRequested || run !== st.runId)
             return;
         setPhaseBoth("intro");
         setMoodFor("neutral");
         const script = [...plan.intro.map((l) => l.text), ...plan.subject].filter(Boolean).join(" ");
+        let spoken = !script;
         if (openingP) {
             const rt = await st.rtP;
             if (rt && !rt.isClosed)
                 st.rt = rt;
-            await openingP;
+            spoken = await openingP;
             setSpeaking(false);
         }
         else if (script && !st.stopRequested) {
             st.replaceNextLog = script;
-            await say({ text: script });
+            spoken = await say({ text: script });
             st.replaceNextLog = null;
         }
+        if (st.stopRequested || run !== st.runId)
+            return;
         st.openingScript = script;
-        st.openingSpoken = !!st.rt;
+        if (!spoken && script) {
+            st.replaceNextLog = null;
+            setQuestionOpen(true);
+            setSitOpen(true);
+            if (st.rt && !st.rt.isClosed)
+                st.rt.drop("silent opening");
+        }
+        st.openingSpoken = spoken && !!st.rt;
         if (plan.timing.prepS > 0) {
             st.prepFresh = false;
             st.prepOld = null;
@@ -528,12 +651,47 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         else
             await beginLive();
     }
+    const retiring = useRef(new Map<LiveExaminer, (text: string) => void>()).current;
+    function handlersFor(self: () => LiveExaminer | null): LiveHandlers {
+        const mine = () => { const ex = self(); return !!ex && ex === R.current.rt; };
+        return {
+            onSpeechStarted: () => { if (mine())
+                rtHandlers.onSpeechStarted(); },
+            onSpeechStopped: () => { if (mine())
+                rtHandlers.onSpeechStopped(); },
+            onAudioStart: () => { if (mine())
+                rtHandlers.onAudioStart(); },
+            onAudioStop: () => { if (mine())
+                rtHandlers.onAudioStop(); },
+            onExaminerText: (t) => { if (mine())
+                rtHandlers.onExaminerText(t); },
+            onCandidateText: (t) => {
+                const ex = self();
+                if (mine())
+                    rtHandlers.onCandidateText(t);
+                else if (ex)
+                    retiring.get(ex)?.(t);
+            },
+            onClosed: (reason, info) => rtHandlers.onClosed(reason, info),
+        };
+    }
     function rtConnect(opts: {
         lastModel?: string | null;
         resumeHandle?: string | null;
         avoid?: string[];
     } = {}, taskNo: TaskNo = curTaskNo()): Promise<LiveExaminer | null> {
-        return LiveExaminer.connect(s.sessionId, rtHandlers, { mode: R.current.micMode, taskNo, ...opts }).catch((e) => {
+        if (R.current.disposed)
+            return Promise.resolve(null);
+        let me: LiveExaminer | null = null;
+        return LiveExaminer.connect(s.sessionId, handlersFor(() => me), { mode: R.current.micMode, taskNo, ...opts }).then((ex) => {
+            me = ex;
+            if (R.current.disposed) {
+                ex.close();
+                return null;
+            }
+            R.current.all.add(ex);
+            return ex;
+        }, (e) => {
             R.current.rtFail = e instanceof Error ? e.message : String(e);
             return null;
         });
@@ -553,10 +711,11 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
     }
     async function tryRecover() {
         const st = R.current;
-        if (st.stopRequested || st.rt)
+        if (st.stopRequested || st.rt || st.recovering)
             return;
         const { model, handle, internal } = recover.current;
-        const rt = await rtConnect({ lastModel: model, resumeHandle: handle, avoid: internal ? [model] : [] });
+        st.recovering = true;
+        const rt = await rtConnect({ lastModel: model, resumeHandle: handle, avoid: internal ? [model] : [] }).finally(() => { st.recovering = false; });
         recover.current.handle = null;
         if (st.stopRequested) {
             rt?.close();
@@ -570,7 +729,7 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         rt.setMode(st.micMode);
         (voice.current ??= new OutputLevel()).attachStream(rt.stream);
         clearTrouble();
-        unfreeze();
+        unfreeze("cut");
         await rtResume(rt);
     }
     async function rtResume(rt: LiveExaminer) {
@@ -672,13 +831,18 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
             void hardStop("close");
             return;
         }
-        if (!st.clockStart)
+        if (!st.clockStart) {
             st.clockStart = Date.now();
+            st.frozenMs = 0;
+            if (st.frozenStart)
+                st.frozenStart = st.clockStart;
+        }
         const taskNo = st.plan?.taskNo ?? 2;
         st.rt.setSilence(taskNo === 2 ? 800 : !st.introDone ? (taskNo === 1 ? 2000 : 5000) : 1500);
         st.rt.setMic(true);
         if (!st.rt.speaking) {
             setPressing(false);
+            st.rt.resetPress();
             st.segStart = Date.now();
             st.lastSpeechAt = Date.now();
             st.spoke = false;
@@ -707,6 +871,7 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
             if (!st.rt || st.stopRequested)
                 return;
             st.spoke = true;
+            st.answer = { taskNo: curTaskNo(), clipId: newClipId() };
             st.turnStartAt = Math.max(0.01, elapsed());
             setRtRecording(true);
             setMoodFor("neutral");
@@ -749,13 +914,8 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         onCandidateText: (text: string) => {
             const st = R.current;
             st.lastCandidateText = text;
-            const seq = st.seq;
-            const up = st.uploads.get(seq);
-            const clipId = st.clipIds.get(seq);
-            if (!seq || !up || !clipId)
-                return;
-            const tn = curTaskNo();
-            st.pending.push(up.then(() => logLater({ taskNo: tn, clipId, candidateText: text })).catch(() => null));
+            if (st.answer)
+                noteText(st.answer, text);
         },
         onAudioStart: () => {
             const st = R.current;
@@ -810,7 +970,13 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
             resumeHandle: string | null;
         }) => {
             const st = R.current;
+            st.all.delete(info.self);
+            if (st.disposed)
+                return;
             if (st.rt && st.rt !== info.self)
+                return;
+            const before = st.phase === "prep" || st.phase === "intro" || st.phase === "preparing";
+            if (!st.rt && !before)
                 return;
             const partial = info.self.heardSoFar;
             st.rt = null;
@@ -825,7 +991,7 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
                     st.prepOld = null;
                     return;
                 }
-                freeze();
+                freeze("cut");
                 if (st.recOn) {
                     st.recOn = false;
                     const spoke = st.spoke;
@@ -843,8 +1009,10 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
             else if (st.phase === "prep" || st.phase === "intro" || st.phase === "preparing") {
                 if (info.self === st.prepOld)
                     st.prepOld = null;
-                else if (!st.prepFresh)
+                else if (!st.prepFresh) {
+                    retire(st.rtP);
                     st.rtP = rtConnect({ lastModel: info.model, avoid: /internal error|code 10(08|11)/i.test(reason) ? [info.model] : [] });
+                }
             }
         },
     };
@@ -856,17 +1024,27 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
     }
     function upload(res: StopResult): Promise<unknown> {
         const st = R.current;
-        const taskNo = curTaskNo();
-        const seq = ++st.seq;
-        const clipId = newClipId();
-        st.clipIds.set(seq, clipId);
-        const item = { taskNo, clipId, register: true, durationS: res.durationS, elapsedS: elapsed() };
-        const p = keepClip({ clipId, sessionId: s.sessionId, taskNo, blob: res.blob, durationS: res.durationS })
+        st.seq += 1;
+        let a = st.answer;
+        if (!a || a.kept)
+            a = st.answer = { taskNo: curTaskNo(), clipId: newClipId() };
+        const answer = a;
+        const item = { taskNo: answer.taskNo, clipId: answer.clipId, register: true, durationS: res.durationS, elapsedS: elapsed() };
+        const p = keepClip({ clipId: answer.clipId, sessionId: s.sessionId, taskNo: answer.taskNo, blob: res.blob, durationS: res.durationS })
             .catch(() => null)
-            .then(() => logLater(item));
+            .then(() => {
+            logLater(item);
+            if (answer.text)
+                logLater({ taskNo: answer.taskNo, clipId: answer.clipId, candidateText: answer.text });
+        });
+        answer.kept = p;
         st.pending.push(p);
-        st.uploads.set(seq, p);
         return p;
+    }
+    function noteText(a: Answer, text: string) {
+        a.text = text;
+        if (a.kept)
+            R.current.pending.push(a.kept.then(() => logLater({ taskNo: a.taskNo, clipId: a.clipId, candidateText: text })).catch(() => null));
     }
     function logLine(text: string, latencyMs?: number | null) {
         logLater({ taskNo: curTaskNo(), examinerText: text, elapsedS: elapsed(), ...(latencyMs != null ? { latencyMs } : {}) });
@@ -885,6 +1063,7 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         const spoke = st.spoke;
         st.closing = true;
         unfreeze();
+        setAsking(null);
         clearTrouble();
         setPondering(false);
         setPhaseBoth("stopping");
@@ -896,9 +1075,19 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         const nextPlan = nextRt && st.nextPlanP ? await Promise.race([st.nextPlanP.catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), 1500))]) : null;
         const nextScript = nextPlan ? [...nextPlan.intro.map((l) => l.text), ...nextPlan.subject].filter(Boolean).join(" ") : "";
         const handoff = !!(nextRt && !nextRt.isClosed && nextPlan);
-        let stopP: Promise<void>;
+        let stopP: Promise<boolean>;
         if (handoff) {
-            rtClose();
+            const old = st.rt;
+            st.rt = null;
+            st.rtP = null;
+            if (old && !old.isClosed) {
+                const a = st.answer;
+                retiring.set(old, (t) => { if (a)
+                    noteText(a, t); });
+                old.muteNextTurn();
+                old.endTurn();
+                setTimeout(() => { retiring.delete(old); old.close(); }, 4000);
+            }
             st.rt = nextRt;
             (voice.current ??= new OutputLevel()).attachStream(nextRt!.stream);
             logLater({ taskNo: task.taskNo, examinerText: line.text, elapsedS: endedAt });
@@ -974,7 +1163,7 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
     function askStop() {
         if (R.current.stopRequested)
             return;
-        freeze();
+        freeze("sheet");
         setAsking(Date.now());
     }
     function resumeFromSheet() {
@@ -982,7 +1171,7 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
         if (asking && st.phase === "prep")
             st.prepEnd += Date.now() - asking;
         setAsking(null);
-        unfreeze();
+        unfreeze("sheet");
     }
     function stopHere() {
         setAsking(null);
@@ -1125,7 +1314,7 @@ export function OralRunner({ session: s, startedAtMs, kind, micMode, lang, onExi
             <Interviewer speaking={speaking} listening={phase === "listening" && !pondering} pondering={!speaking && (pondering || phase === "examiner" || phase === "intro" || phase === "stopping")} thinking={phase === "prep" || phase === "connecting" || phase === "preparing"} mood={mood} level={() => voice.current?.get() ?? null} lang={lang}/>
             <span className="eo-status mob-only" data-on={phase === "listening" || speaking || undefined}><i aria-hidden="true"/>{speaking ? w.statusSpeaking : phase === "listening" ? w.statusListening : phase === "prep" ? w.statusPrep : w.statusThinking}</span>
             <p className="eo-caption">{caption ?? ""}</p>
-            {micError ? (<Trouble message={micError === w.noRecorder ? micError : w.troubleMic} onQuit={() => void abandon()} onRetry={micError === w.noRecorder ? undefined : () => { setMicError(null); void startFrom(R.current.taskIdx); }} lang={lang}/>) : trouble ? (<Trouble message={trouble.message} final={trouble.final} retryIn={retryIn} onRetry={onRetryNow} onQuit={trouble.quit} link={trouble.link} lang={lang}/>) : null}
+            {elsewhere ? (<Trouble message={w.elsewhere} onQuit={() => replace("/")} lang={lang}/>) : micError ? (<Trouble message={micError === w.noRecorder ? micError : w.troubleMic} onQuit={() => void abandon()} onRetry={micError === w.noRecorder ? undefined : () => { setMicError(null); void startFrom(R.current.taskIdx); }} lang={lang}/>) : trouble ? (<Trouble message={trouble.message} final={trouble.final} retryIn={retryIn} onRetry={onRetryNow} onQuit={trouble.quit} link={trouble.link} lang={lang}/>) : null}
           </section>
         </div>
       </Station>

@@ -449,3 +449,10 @@ button.room-step:hover { border-color: var(--ink); color: var(--ink); }
   .msg { max-width: 94%; }
   .bubble-play { min-height: 36px; }
 }
+
+.room-untimed { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 16px; border-radius: var(--radius-pill); border: var(--border-strong) solid var(--line); background: var(--surface); color: var(--ink-muted); font-weight: 800; font-size: 14px; white-space: nowrap; }
+.room-untimed-n { font-family: var(--font-mono); font-weight: 700; font-size: 18px; color: var(--ink); font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) {
+  .room-untimed { height: 36px; padding: 0 12px; font-size: 12px; gap: 6px; }
+  .room-untimed-n { font-size: 15px; }
+}

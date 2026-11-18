@@ -17,6 +17,13 @@ type Release = {
 };
 const RELEASES: Release[] = [
     {
+        id: "2026-11-18", date: "2026-11-18", forNew: true, party: true,
+        row: {
+            fr: <><a {...linkProps("/co/exam")}>Examen d'écoute n° 43</a>, l'écrit sans chrono, 25 corrections du simulateur</>,
+            en: <><a {...linkProps("/co/exam")}>Listening exam no. 43</a>, writing without the timer, 25 simulator fixes</>,
+        },
+    },
+    {
         id: "2026-11-12", date: "2026-11-12", forNew: false, party: false,
         row: { fr: "Messages, 4 bugs corrigés, 4 questions rectifiées, 5 doublons réunis", en: "Messages, 4 bugs fixed, 4 questions corrected, 5 repeats merged" },
     },
@@ -109,10 +116,48 @@ function Nov12Body({ lang, close }: {
       </ul>
     </>);
 }
+const NOV18 = {
+    fr: {
+        title: "Un nouvel examen d'écoute !",
+        points: [
+            { icon: "co", b: "Examen d'écoute n° 43", t: "39 nouvelles questions, aussi à l'entraînement, de A1 à C2, avec indices, traductions et explications.", to: "/co/exam", go: "Commencer" },
+            { icon: "clock", b: "Écrire sans chrono", t: "Sur la page de lancement de l'expression écrite, choisissez « Sans chrono » : pas de compte à rebours, vous rendez quand vous voulez, la correction est la même.", to: "/ee", go: "Essayer" },
+            { icon: "check", b: "25 corrections du simulateur", t: "À l'oral : une seule voix d'examinatrice, chaque transcription à sa place, l'écran reste allumé, le bouton pour parler plus fiable. À l'écrit : le chrono ne s'arrête plus quand vous tapez, une note n'est jamais demandée deux fois, des messages d'erreur plus clairs." },
+            { icon: "flag", b: "Vos signalements", t: "Un encadré sous le lecteur indique maintenant un enregistrement abîmé. Trois questions corrigées." },
+        ],
+    },
+    en: {
+        title: "A new listening exam!",
+        points: [
+            { icon: "co", b: "Listening exam no. 43", t: "39 new questions, also in practice, from A1 to C2, with hints, translations and explanations.", to: "/co/exam", go: "Start" },
+            { icon: "clock", b: "Write without the timer", t: "On the writing setup page pick “No timer”: no countdown, hand in when you like, the same marking.", to: "/ee", go: "Try it" },
+            { icon: "check", b: "25 simulator fixes", t: "Speaking: one examiner's voice, every transcript in its place, the screen stays on, a more reliable push-to-talk. Writing: the clock no longer stops while you type, a mark is never asked for twice, clearer error messages." },
+            { icon: "flag", b: "Your reports", t: "A box under the player now says when a recording is damaged. Three questions fixed." },
+        ],
+    },
+} as const;
+function Nov18Body({ lang, close }: {
+    lang: Lang;
+    close: () => void;
+}) {
+    const w = NOV18[lang];
+    return (<>
+      <h2 id="release-title">{w.title}</h2>
+      <ul className="release-points">
+        {w.points.map((p) => {
+            const link = "to" in p ? linkProps(p.to) : null;
+            return (<li key={p.b}>
+              <span className="release-point-icon"><Icon name={p.icon} size={18}/></span>
+              <span><b>{p.b}</b> {p.t}{link && "go" in p && <> <a href={link.href} onClick={(e) => { close(); link.onClick(e); }}>{p.go} →</a></>}</span>
+            </li>);
+        })}
+      </ul>
+    </>);
+}
 const BODIES: Record<string, (p: {
     lang: Lang;
     close: () => void;
-}) => ReactNode> = { "2026-11-11": ExamsBody, "2026-11-12": Nov12Body };
+}) => ReactNode> = { "2026-11-11": ExamsBody, "2026-11-12": Nov12Body, "2026-11-18": Nov18Body };
 function useConfetti(on: boolean, canvas: React.RefObject<HTMLCanvasElement | null>) {
     useEffect(() => {
         const c = canvas.current;

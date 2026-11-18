@@ -1,7 +1,7 @@
 import { markWriting, within } from "./browser-score";
-import { putWork } from "./work";
+import { getWork, putWork, workOfSession } from "./work";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Icon, Button, TacheTag } from "../../ui/ui";
+import { Icon, Button, TacheTag, Empty } from "../../ui/ui";
 import { WRITING, wordCount, type PromptView, type SessionSummary, type StartedSession, type TaskNo } from "./types";
 import { Station, useLeaveGuard } from "./station";
 import { SessionResults, type TaskView } from "./session-results";
@@ -13,6 +13,10 @@ import { useSimWords } from "./words";
 import type { Lang } from "../i18n";
 import type { MockHooks } from "../mock/shell.tsx";
 import { serverNow } from "../coce/room/hooks.ts";
+import { isUntimed } from "../expr.ts";
+import { claimRoom } from "./one-room";
+import { replace } from "../../ui/router.ts";
+import { capWords } from "./word-cap";
 type SubmitResult = {
     evaluation: unknown | null;
     detail?: unknown | null;
@@ -40,7 +44,16 @@ export function EcritRunner({ session: s, startedAtMs, kind, lang, onExit, mock 
     const w = useSimWords(lang);
     const pKey = `tcfm-progress-${s.sessionId}`;
     const draftKey = (n: number) => `tcfm-draft-${s.sessionId}-${n}`;
-    const [hall, setHall] = useState(kind === "exam" && !mock);
+    const [hall, setHall] = useState(() => {
+        if (kind !== "exam" || mock)
+            return false;
+        try {
+            return localStorage.getItem(`tcfm-progress-${s.sessionId}`) == null;
+        }
+        catch {
+            return true;
+        }
+    });
     const [idx, setIdx] = useState(0);
     const [confirm, setConfirm] = useState(false);
     const [texts, setTexts] = useState<Record<number, string>>({});
@@ -48,8 +61,11 @@ export function EcritRunner({ session: s, startedAtMs, kind, lang, onExit, mock 
     const [summary, setSummary] = useState<SessionSummary | null>(null);
     const [pending, setPending] = useState<Pending>({});
     const [failures, setFailures] = useState<Record<number, Failure>>({});
-    const [left, setLeft] = useState(s.totalSeconds);
+    const untimed = !mock && isUntimed(s.sessionId);
+    const [left, setLeft] = useState(untimed ? Math.max(0, (Date.now() - startedAtMs) / 1000) : s.totalSeconds);
     const [hydrated, setHydrated] = useState(false);
+    const [away, setAway] = useState(false);
+    const [elsewhere, setElsewhere] = useState(false);
     const [saved, setSaved] = useState(false);
     const [folded, setFolded] = useState(false);
     const endAt = useRef(mock ? (mock.endsAt ?? Infinity) : startedAtMs + s.totalSeconds * 1000);
@@ -87,13 +103,29 @@ export function EcritRunner({ session: s, startedAtMs, kind, lang, onExit, mock 
             const t: Record<number, string> = {};
             for (const task of s.tasks) {
                 const mine = mock?.store.state.drafts[String(task.taskNo)] ?? "";
-                const kept = localStorage.getItem(draftKey(task.taskNo)) || task.stored?.responseText || "";
+                const kept = localStorage.getItem(draftKey(task.taskNo)) ?? task.stored?.responseText ?? "";
                 t[task.taskNo] = mine.length > kept.length ? mine : kept;
             }
             setTexts(t);
         }
         catch { }
-        setHydrated(true);
+        let here = !!mock;
+        try {
+            here ||= localStorage.getItem(pKey) != null || s.tasks.some((t) => localStorage.getItem(draftKey(t.taskNo)) != null);
+        }
+        catch {
+            here = true;
+        }
+        const open = s.tasks.some((t) => !(t.stored?.status === "done" && t.stored.score20 != null));
+        if (here || !open) {
+            setHydrated(true);
+            return;
+        }
+        void workOfSession(s.sessionId).catch(() => [{}]).then((kept) => {
+            if (!kept.length)
+                setAway(true);
+            setHydrated(true);
+        });
     }, [pKey]);
     useEffect(() => {
         if (!hydrated)
@@ -104,8 +136,10 @@ export function EcritRunner({ session: s, startedAtMs, kind, lang, onExit, mock 
         catch { }
     }, [idx, results, summary, pending, pKey, hydrated]);
     const saveNow = useCallback((taskNo: number, body: string) => {
-        if (!body.trim())
+        if (!body.trim()) {
+            void getWork(s.sessionId, taskNo).then((w) => (w?.text?.trim() ? putWork(s.sessionId, taskNo, { text: "" }) : undefined)).catch(() => { });
             return;
+        }
         lastSave.current = Date.now();
         void putWork(s.sessionId, taskNo, { text: body })
             .then(() => {
@@ -150,7 +184,7 @@ export function EcritRunner({ session: s, startedAtMs, kind, lang, onExit, mock 
     const score = useCallback(async (taskNo: TaskNo, prompt: PromptView, body: string) => {
         setPending((p) => ({ ...p, [taskNo]: "running" }));
         try {
-            const d = await within(markWriting(s.sessionId, taskNo, body, (Date.now() - startedAtMs) / 1000), SCORING_TIMEOUT_MS);
+            const d = await within(markWriting(s.sessionId, taskNo, body, (Date.now() - startedAtMs) / 1000, true), SCORING_TIMEOUT_MS);
             const view: TaskView = { taskNo, sessionId: s.sessionId, prompt, responseText: body, wordCount: wordCount(body), score20: d.score20, level: d.level, nclc: d.nclc, feedbackJson: d.evaluation ? JSON.stringify(d.evaluation) : null, detailJson: d.detail ? JSON.stringify(d.detail) : null };
             setResults((x) => ({ ...x, [taskNo]: view }));
             if (d.summary)
@@ -193,25 +227,52 @@ export function EcritRunner({ session: s, startedAtMs, kind, lang, onExit, mock 
         if (t)
             void score(taskNo, t.prompt, texts[taskNo] ?? "");
     }, [s.tasks, texts, score]);
+    const finishRef = useRef(finish);
+    finishRef.current = finish;
     useEffect(() => {
-        if (done || hall)
+        if (done || hall || !hydrated || away || elsewhere)
             return;
         if (waiting) {
             setLeft(s.totalSeconds);
             return;
         }
+        if (untimed) {
+            const id = setInterval(() => setLeft(Math.max(0, (Date.now() - startedAtMs) / 1000)), 1000);
+            return () => clearInterval(id);
+        }
         const id = setInterval(() => {
             const l = Math.max(0, (endAt.current - now()) / 1000);
             setLeft(l);
             if (l <= 0 && !submitting.current)
-                finish();
+                finishRef.current();
         }, 250);
         return () => clearInterval(id);
-    }, [done, hall, finish, now, waiting, s.totalSeconds]);
+    }, [done, hall, hydrated, away, elsewhere, now, waiting, s.totalSeconds, untimed, startedAtMs]);
+    useEffect(() => {
+        if (!hydrated || done || hall)
+            return;
+        return claimRoom(() => { setConfirm(false); setElsewhere(true); }, "writing");
+    }, [hydrated, done, hall]);
     if (hall)
-        return <Hallway title={w.ee} sub={w.minutes(Math.round(s.totalSeconds / 60))} ai onDone={() => setHall(false)} lang={lang}/>;
+        return <Hallway title={w.ee} sub={untimed ? w.untimed : w.minutes(Math.round(s.totalSeconds / 60))} ai onDone={() => setHall(false)} lang={lang}/>;
     if (!hydrated)
         return null;
+    if (elsewhere && !done) {
+        return (<div className="section-page room-missing">
+        <Empty icon="ee" title={w.writingElsewhere}>
+          <Button size="sm" onClick={() => replace("/")}>{w.quit}</Button>
+        </Empty>
+      </div>);
+    }
+    if (away && !done) {
+        const over = !untimed && now() >= endAt.current;
+        return (<div className="section-page room-missing">
+        <Empty icon="ee" title={w.writingAway}>
+          {!over && <Button size="sm" kind="quiet" onClick={() => setAway(false)}>{w.writeHere}</Button>}
+          <Button size="sm" onClick={onExit}>{w.quit}</Button>
+        </Empty>
+      </div>);
+    }
     if (done) {
         const views = s.tasks.map((t) => results[t.taskNo] ?? ({ taskNo: t.taskNo, sessionId: s.sessionId, prompt: t.prompt, responseText: texts[t.taskNo] ?? "", wordCount: wordCount(texts[t.taskNo] ?? ""), score20: null, level: null, nclc: null, feedbackJson: null } satisfies TaskView));
         return <SessionResults skill="writing" sessionId={s.sessionId} views={views} summary={summary} selected={s.tasks.map((t) => t.taskNo)} pending={pending} failures={failures} onRetry={retry} onExit={onExit} lang={lang}/>;
@@ -220,7 +281,7 @@ export function EcritRunner({ session: s, startedAtMs, kind, lang, onExit, mock 
     const many = s.tasks.length > 1;
     const last = idx === s.tasks.length - 1;
     return (<>
-      <Station skill="writing" steps={s.tasks.map((t, i) => ({ taskNo: t.taskNo, done: false, active: i === idx, words: wordCount(texts[t.taskNo] ?? "") }))} onSelect={many ? go : undefined} secondsLeft={left} running={!waiting} warnUnder={120} blinkUnder={30} lang={lang} sub={mock?.sub} foot={<>
+      <Station skill="writing" steps={s.tasks.map((t, i) => ({ taskNo: t.taskNo, done: false, active: i === idx, words: wordCount(texts[t.taskNo] ?? "") }))} onSelect={many ? go : undefined} secondsLeft={left} running={!waiting} untimed={untimed} warnUnder={120} blinkUnder={30} lang={lang} sub={mock?.sub} foot={<>
             <div className="ee-nav ee-nav-left">
               <Button kind="quiet" className="room-finish" onClick={() => setConfirm(true)} disabled={waiting} aria-label={w.finish}><Icon name="stop" size={18} className="mob-only icon-fill"/><span className="desk-only">{w.finish}</span></Button>
             </div>
@@ -258,10 +319,10 @@ export function EcritRunner({ session: s, startedAtMs, kind, lang, onExit, mock 
                 el.setSelectionRange(el.value.length, el.value.length);
                 el.scrollTop = el.scrollHeight;
             }
-        }} className="sim-paper ee-area" value={text} onChange={(e) => setTexts((x) => ({ ...x, [cur.taskNo]: e.target.value }))} spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" lang="fr" aria-label={w.taskN(cur.taskNo)}/>
+        }} className="sim-paper ee-area" value={text} onChange={(e) => { const v = capWords(e.target.value); setTexts((x) => ({ ...x, [cur.taskNo]: v })); }} spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" lang="fr" aria-label={w.taskN(cur.taskNo)}/>
           </section>
         </div>
       </Station>
-      <FinishDialog open={confirm} tasks={s.tasks.map((t) => ({ taskNo: t.taskNo, words: wordCount(texts[t.taskNo] ?? ""), min: WRITING.tasks[t.taskNo].wordsMin, max: WRITING.tasks[t.taskNo].wordsMax }))} secondsLeft={left} onBack={() => setConfirm(false)} onFinish={finish} lang={lang}/>
+      <FinishDialog open={confirm} tasks={s.tasks.map((t) => ({ taskNo: t.taskNo, words: wordCount(texts[t.taskNo] ?? ""), min: WRITING.tasks[t.taskNo].wordsMin, max: WRITING.tasks[t.taskNo].wordsMax }))} secondsLeft={untimed ? 0 : left} onBack={() => setConfirm(false)} onFinish={finish} lang={lang}/>
     </>);
 }

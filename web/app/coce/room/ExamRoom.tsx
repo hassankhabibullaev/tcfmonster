@@ -5,7 +5,7 @@ import type { Key, Question, Section } from "../bank.ts";
 import { DURATION_MIN, EXAM_QUESTIONS, placementOf, type Attempt } from "./attempt.ts";
 import { Shell, type Progress } from "./Shell.tsx";
 import { Player, type PlayerHandle } from "./Player.tsx";
-import { Passage } from "./Passage.tsx";
+import { Caution, Passage } from "./Passage.tsx";
 import { Options } from "./Options.tsx";
 import { Feedback } from "./Feedback.tsx";
 import { Picker, type PickTone } from "./Picker.tsx";
@@ -337,6 +337,7 @@ export function ExamRoom({ section, exam, attempt, questions, lang, onFinished, 
         : phase === "failed" ? <><span>{w.finishFailed}</span><Button size="sm" icon="refresh" onClick={() => void finish(lastEnded.current)}>{w.retry}</Button></> : undefined;
     const leftCol = co ? (<>
       <Player ref={player} src={q.audio ?? ""} resetKey={`${attempt.id}/${q.id}/${pending ? "wait" : "live"}`} maxPlays={strict ? (heardBefore.current === q.id ? 0 : 1) : null} scrubber={!strict} autoplay={!pending && !(strict && heardBefore.current === q.id)} locked={strict} lang={lang} onEnded={strict ? onRecordingEnded : undefined} onError={onAudioError}/>
+      <Caution caution={q.caution} lang={lang}/>
       {strict && <div className="cr-grace" aria-hidden="true">{grace !== null && <i key={grace} style={{ animationDuration: `${Math.max(0, grace - Date.now())}ms` }}/>}</div>}
       <div className="cr-text">{q.image && <img className="cr-picture" src={q.image} alt=""/>}</div>
     </>) : (<div className="cr-text"><Passage text={q.passage} textEn={null} english={false}/></div>);

@@ -12,6 +12,30 @@ export function pickMime(): string {
             return t;
     return "";
 }
+export const STOP_DEADLINE_MS = 2500;
+export function stopRecorder(rec: Pick<MediaRecorder, "state" | "stop" | "onstop"> | null, finish: () => void, ms = STOP_DEADLINE_MS) {
+    let done = false;
+    const once = () => {
+        if (done)
+            return;
+        done = true;
+        clearTimeout(timer);
+        finish();
+    };
+    if (!rec || rec.state === "inactive") {
+        done = true;
+        finish();
+        return;
+    }
+    const timer = setTimeout(once, ms);
+    rec.onstop = once;
+    try {
+        rec.stop();
+    }
+    catch {
+        once();
+    }
+}
 export function useRecorder(opts: {
     onLevel?: (rms: number) => void;
 } = {}) {
@@ -53,15 +77,14 @@ export function useRecorder(opts: {
                 setLevel(0);
                 resolve({ blob, durationS, mime });
             };
-            if (!rec || rec.state === "inactive")
-                return finish();
-            rec.onstop = finish;
-            rec.stop();
+            stopRecorder(rec, finish);
         });
     }, []);
     const start = useCallback(async () => {
         setError(null);
         const gen = ++genRef.current;
+        chunksRef.current = [];
+        startedAt.current = Date.now();
         try {
             if (mediaRef.current && mediaRef.current.state !== "inactive")
                 mediaRef.current.stop();

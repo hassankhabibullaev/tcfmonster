@@ -95,6 +95,22 @@ export function hintNodes(text: string): ReactNode[] {
     flush();
     return out;
 }
+export function Caution({ caution, lang }: {
+    caution: {
+        fr: string;
+        en: string;
+    } | null | undefined;
+    lang: Lang;
+}) {
+    const w = useRoomWords(lang);
+    const text = caution ? (lang === "en" ? caution.en || caution.fr : caution.fr || caution.en) : "";
+    if (!text)
+        return null;
+    return (<div className="cr-caution" role="note">
+      <Icon name="alert" size={18}/>
+      <p><b>{w.caution}</b> {text}</p>
+    </div>);
+}
 export function Hint({ hint, english, lang }: {
     hint: {
         fr: string;

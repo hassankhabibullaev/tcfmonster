@@ -9,7 +9,7 @@ import { useLevel, useSection } from "../store.ts";
 import { Shell, Switch, type Progress } from "./Shell.tsx";
 import { Player, type PlayerHandle } from "./Player.tsx";
 import { Transcript } from "./Transcript.tsx";
-import { Fold, Hint, MiniSeg, Panel, PanelBar } from "./Passage.tsx";
+import { Caution, Fold, Hint, MiniSeg, Panel, PanelBar } from "./Passage.tsx";
 import { Options } from "./Options.tsx";
 import { Feedback } from "./Feedback.tsx";
 import { Picker, type PickTone } from "./Picker.tsx";
@@ -208,6 +208,7 @@ export function PracticeRoom({ section, level, lang, onExit, settings, onSetting
     const left = section === "co" && phone ? (<>
       <PanelBar><span className="spacer"/>{langSeg}</PanelBar>
       <Player ref={player} src={q.audio ?? ""} resetKey={q.id} maxPlays={null} scrubber autoplay={autoplay} lang={lang}/>
+      <Caution caution={q.caution} lang={lang}/>
       {q.image && <img className="cr-picture cr-picture-top" src={q.image} alt=""/>}
       <div className="cr-text cr-folds">
         <Fold title={w.transcript} open={transcript} onToggle={(v) => setSwitch("transcript", v)} disabled={!q.transcript}>
@@ -219,6 +220,7 @@ export function PracticeRoom({ section, level, lang, onExit, settings, onSetting
       </div>
     </>) : section === "co" ? (<>
       <Player ref={player} src={q.audio ?? ""} resetKey={q.id} maxPlays={null} scrubber autoplay={autoplay} lang={lang}/>
+      <Caution caution={q.caution} lang={lang}/>
       <PanelBar>
         <Switch label={w.autoplay} on={autoplay} onChange={(v) => setSwitch("autoplay", v)}/>
         <Switch label={w.transcript} on={transcript} onChange={(v) => setSwitch("transcript", v)}/>

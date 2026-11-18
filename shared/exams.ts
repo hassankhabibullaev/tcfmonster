@@ -1,4 +1,4 @@
-export const EXAMS = { co: 42, ce: 44 } as const;
+export const EXAMS = { co: 43, ce: 44 } as const;
 export type ExamSection = keyof typeof EXAMS;
 export const NEW_DAYS = 30;
 export const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

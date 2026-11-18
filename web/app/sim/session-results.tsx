@@ -82,7 +82,8 @@ export function SessionResults({ skill, sessionId, views, summary, selected, pen
                     const count = tries.current[n] ?? 0;
                     if (count >= 3 || failures[n]?.key)
                         continue;
-                    next[n] = Date.now() + Math.min(60, failures[n]?.retryInS ?? 60) * 1000;
+                    const f = failures[n];
+                    next[n] = Date.now() + (f?.google ? f.retryInS : Math.min(60, f?.retryInS ?? 60)) * 1000;
                 }
                 else
                     delete next[n];

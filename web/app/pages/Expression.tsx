@@ -56,7 +56,8 @@ const XW = {
         fullTile: "1·2·3", oneTile: "1", fullSubShort: (s: S) => `${s === "ee" ? "60" : "12"} min · un chrono · note /20`, oneSubShort: (s: S) => (s === "ee" ? "10, 15 ou 25 min · au choix" : "2, 5 min 30 ou 4 min 30 · au choix"),
         fullLine: "Les trois tâches à la suite, comme le jour J", oneLine: "Une seule, avec son propre temps", moreWhy: "En savoir plus",
         practiseShort: "S'entraîner", chooseShort: "Choisir", changeTopic: "Changer", randomShort: "Sujet au hasard",
-        mic: "Microphone", randomTopic: "Sujet tiré au hasard au lancement", noTopicT1: "Pas de sujet : l'examinatrice vous interroge sur vous.", chooseTopic: "Choisir un sujet", randomBtn: "Au hasard", pickTitle: (n: number) => `Sujet de la Tâche ${n}`,
+        mic: "Microphone", randomTopic: "Sujet tiré au hasard au lancement",
+        timer: "Temps", timed: "Chronométré", timedSub: (m: string) => `${m}, comme à l'examen`, untimed: "Sans chrono", untimedSub: "Écrivez à votre rythme, rendez quand vous voulez", noClock: "sans chrono", noTopicT1: "Pas de sujet : l'examinatrice vous interroge sur vous.", chooseTopic: "Choisir un sujet", randomBtn: "Au hasard", pickTitle: (n: number) => `Sujet de la Tâche ${n}`,
         startSim: "Lancer la simulation", minutes: (m: number) => `${m % 1 ? m.toFixed(1).replace(".", ",") : m} min`,
         practiseThis: "S'entraîner sur ce sujet avec", partie: (n: number) => `Partie ${n}`, combinaison: (n: number) => `Combinaison ${n}`, topicNo: (n: number) => `n° ${n}`,
         deleteOne: "Supprimer cette séance", deleteTitle: "Supprimer cette séance ?", deleteBody: "Elle disparaît de votre historique et de votre tableau de bord. On ne peut pas revenir en arrière.",
@@ -83,7 +84,8 @@ const XW = {
         fullTile: "1·2·3", oneTile: "1", fullSubShort: (s: S) => `${s === "ee" ? "60" : "12"} min · one clock · mark /20`, oneSubShort: (s: S) => (s === "ee" ? "10, 15 or 25 min · your pick" : "2, 5½ or 4½ min · your pick"),
         fullLine: "The three tasks in a row, as on the day", oneLine: "One only, with its own time", moreWhy: "More",
         practiseShort: "Practise", chooseShort: "Choose", changeTopic: "Change", randomShort: "Random topic",
-        mic: "Microphone", randomTopic: "Topic drawn at random at the start", noTopicT1: "No topic: the examiner asks about you.", chooseTopic: "Choose a topic", randomBtn: "Random", pickTitle: (n: number) => `Topic of Tâche ${n}`,
+        mic: "Microphone", randomTopic: "Topic drawn at random at the start",
+        timer: "Time", timed: "Timed", timedSub: (m: string) => `${m}, as in the exam`, untimed: "No timer", untimedSub: "Write at your own pace, hand in when you like", noClock: "no timer", noTopicT1: "No topic: the examiner asks about you.", chooseTopic: "Choose a topic", randomBtn: "Random", pickTitle: (n: number) => `Topic of Tâche ${n}`,
         startSim: "Start the simulation", minutes: (m: number) => `${m} min`,
         practiseThis: "Practise this topic with", partie: (n: number) => `Partie ${n}`, combinaison: (n: number) => `Combinaison ${n}`, topicNo: (n: number) => `no. ${n}`,
         deleteOne: "Delete this session", deleteTitle: "Delete this session?", deleteBody: "It disappears from your history and your dashboard. This cannot be undone.",
@@ -100,6 +102,7 @@ export function useStart(s: S) {
         taches: TaskNo[];
         topicIds?: Partial<Record<TaskNo, number>>;
         mode?: MicMode | null;
+        untimed?: boolean;
     }) {
         if (!keyHere()) {
             setRetry(() => () => start(o));
@@ -264,6 +267,9 @@ function Setup({ s, way }: {
     const savedMode = (me?.settings?.eo?.mode === "ptt" ? "ptt" : "live") as MicMode;
     const [mode, setMode] = useState<MicMode>(savedMode);
     const pickMode = (m: MicMode) => { setMode(m); void update({ settings: { eo: { ...(me?.settings?.eo ?? {}), mode: m } } }); };
+    const [untimed, setUntimed] = useState<boolean>(s === "ee" && me?.settings?.ee?.timer === "off");
+    const pickTimer = (off: boolean) => { setUntimed(off); void update({ settings: { ee: { ...(me?.settings?.ee ?? {}), timer: off ? "off" : "on" } } }); };
+    const timeLabel = untimed ? w.noClock : w.minutes(mins);
     const [picked, setPicked] = useState<Partial<Record<TaskNo, {
         id: number;
         text: string;
@@ -300,7 +306,7 @@ function Setup({ s, way }: {
         <BackLink to={`/${s}/practice`} label={t.tabPractice}/>
         <div className="setup-head">
           <h1 className="setup-title">{way === "exam" ? w.full : w.one}</h1>
-          <p className="setup-sub mob-only num"><b>{s.toUpperCase()}</b> · <MonsterAI /> · {way === "exam" || task ? w.minutes(mins) : "—"}</p>
+          <p className="setup-sub mob-only num"><b>{s.toUpperCase()}</b> · <MonsterAI /> · {way === "exam" || task ? timeLabel : "—"}</p>
           <p className="setup-brand desk-only"><MonsterAI powered lang={lang}/></p>
           <p className="x-lead desk-only">{way === "exam" ? w.leadExam : w.leadTask(s)}</p>
         </div>
@@ -344,9 +350,17 @@ function Setup({ s, way }: {
           </div>
         </section>)}
 
+      {s === "ee" && (<section className="card pad setup-block setup-timer">
+          <h2 className="desk-only">{w.timer}</h2>
+          <div className="picks setup-mic-picks" role="group" aria-label={w.timer}>
+            <button type="button" className="pick" aria-pressed={!untimed} onClick={() => pickTimer(false)}><b><Icon name="clock" size={14}/>{w.timed}</b><span>{w.timedSub(ready ? w.minutes(mins) : "10, 15, 25 min")}</span></button>
+            <button type="button" className="pick" aria-pressed={untimed} onClick={() => pickTimer(true)}><b><Icon name="pause" size={14}/>{w.untimed}</b><span>{w.untimedSub}</span></button>
+          </div>
+        </section>)}
+
       <div className="setup-start">
-        <Button kind="primary" busy={busy} disabled={!ready} onClick={() => start({ kind: way === "exam" ? "exam" : "practice", taches, topicIds, mode: s === "eo" ? mode : null })}>{w.startSim}</Button>
-        {ready && <span className="muted small desk-only">{taches.map((n) => t.tache(n)).join(" → ")} · {w.minutes(mins)}</span>}
+        <Button kind="primary" busy={busy} disabled={!ready} onClick={() => start({ kind: way === "exam" ? "exam" : "practice", taches, topicIds, mode: s === "eo" ? mode : null, untimed })}>{w.startSim}</Button>
+        {ready && <span className="muted small desk-only">{taches.map((n) => t.tache(n)).join(" → ")} · {timeLabel}</span>}
       </div>
 
       <Sheet open={pickFor !== null} title={pickFor ? w.pickTitle(pickFor) : ""} onClose={() => setPickFor(null)} actions={<Button onClick={() => setPickFor(null)}>{t.cancel}</Button>}>
@@ -435,7 +449,7 @@ function Topics({ s }: {
     if (!data.months.length)
         return <Empty icon={s} title={t.noTopics}/>;
     const rows = data.rows;
-    const practise = (r: TopicRow, n: TaskNo) => start({ kind: "practice", taches: [n], topicIds: { [n]: r.id }, mode: s === "eo" ? mode : null });
+    const practise = (r: TopicRow, n: TaskNo) => start({ kind: "practice", taches: [n], topicIds: { [n]: r.id }, mode: s === "eo" ? mode : null, untimed: s === "ee" && me?.settings?.ee?.timer === "off" });
     const headOf = (p: number) => (s === "eo" ? w.partie(p) : w.combinaison(p));
     const practiseBtn = (r: TopicRow, n: TaskNo) => <Button size="sm" busy={busy} className="topic-go" onClick={() => practise(r, n)}><Icon name="spark" size={14} className="mob-only icon-fill x-spark"/><span className="desk-only">{w.practiseThis} <MonsterAI /></span><span className="mob-only">{w.practiseShort}</span></Button>;
     const taskHead = (n: TaskNo) => (<div className="task-head">

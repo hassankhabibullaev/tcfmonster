@@ -83,6 +83,17 @@ export async function workOfSession(sessionId: string): Promise<Work[]> {
 export async function dropSessionWork(sessionId: string): Promise<void> {
     for (const w of await workOfSession(sessionId))
         await run("readwrite", (s) => s.delete(w.id));
+    try {
+        const gone: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith(`tcfm-draft-${sessionId}-`) || k === `tcfm-progress-${sessionId}`))
+                gone.push(k);
+        }
+        for (const k of gone)
+            localStorage.removeItem(k);
+    }
+    catch { }
 }
 export async function dropAllWork(): Promise<void> {
     if (!owner)
@@ -148,7 +159,7 @@ export async function withWork(d: StoredSession): Promise<StoredSession> {
                 feedbackJson: w?.evaluation ?? t.marksJson ?? null,
                 detailJson: w?.detail ?? null,
                 versionsJson: w?.versions ?? null,
-                elsewhere: t.status === "done" && !w?.evaluation,
+                elsewhere: t.status === "done" && !w?.evaluation && (t.wordCount ?? 1) > 0,
             };
         }),
     };

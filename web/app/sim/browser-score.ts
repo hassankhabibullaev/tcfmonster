@@ -200,20 +200,36 @@ export type WritingResult = {
     nclc: number;
     summary: SessionSummary | null;
 };
-export async function markWriting(sessionId: string, taskNo: TaskNo, text: string, elapsedS: number): Promise<WritingResult> {
+const marking = new Map<string, Promise<WritingResult>>();
+export function markWriting(sessionId: string, taskNo: TaskNo, text: string, elapsedS: number, exact = false): Promise<WritingResult> {
+    const id = `${sessionId}:${taskNo}`;
+    const on = marking.get(id);
+    if (on)
+        return on;
+    const p = markWritingNow(sessionId, taskNo, text, elapsedS, exact).finally(() => marking.delete(id));
+    marking.set(id, p);
+    return p;
+}
+async function markWritingNow(sessionId: string, taskNo: TaskNo, text: string, elapsedS: number, exact: boolean): Promise<WritingResult> {
     const task = await taskOf(sessionId, taskNo);
     if (task.status === "done" && task.score20 != null) {
         return { evaluation: safe<Evaluation | null>(task.feedbackJson, null), detail: safe<Detail | null>(task.detailJson, null), score20: task.score20, level: task.level ?? "", nclc: task.nclc ?? 0, summary: null };
     }
-    const body = text.trim() ? text : task.responseText ?? "";
-    if (body.trim() && body !== (task.responseText ?? ""))
+    const body = exact || text.trim() ? text : task.responseText ?? "";
+    if (body !== (task.responseText ?? "") && (body.trim() || task.responseText != null))
         await putWork(sessionId, taskNo, { text: body });
     await ready();
     const { scoreWriting } = await import("../../../shared/sim/writing-core.ts");
     const { wordCount } = await import("../../../shared/sim/util.ts");
     const { marksOf } = await import("../../../shared/sim/marks.ts");
-    const r = await scoreWriting({ taskId: task.id, taskNo, prompt: promptOf(task), text: body, elapsedS }).catch(onFailure);
-    worked();
+    const kept = body.trim() ? await getWork(sessionId, taskNo) : null;
+    const again = kept?.evaluation && kept.text === body ? safe<Evaluation | null>(kept.evaluation, null) : null;
+    const againMarks = again ? marksOf("writing", taskNo, again) : null;
+    const r = again && againMarks
+        ? { evaluation: again, detail: safe<Detail | null>(kept?.detail, null), score20: againMarks.score20 }
+        : await scoreWriting({ taskId: task.id, taskNo, prompt: promptOf(task), text: body, elapsedS }).catch(onFailure);
+    if (!again)
+        worked();
     await putWork(sessionId, taskNo, { text: body, evaluation: r.evaluation ? JSON.stringify(r.evaluation) : null, ...(r.detail ? { detail: JSON.stringify(r.detail) } : {}) });
     const saved = await store<{
         score20: number;
